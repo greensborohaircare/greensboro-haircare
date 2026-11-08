@@ -65,7 +65,11 @@ function cleanPromos(p) {
     on: !!a.on, pct: Math.min(100, Math.max(0, Number(a.pct) || 0)),
     label: String(a.label || "Weekend special").slice(0, 60),
     startDay: day(a.startDay, 6), startTime: cleanTime(a.startTime, "17:00"),
-    endDay: day(a.endDay, 2), endTime: cleanTime(a.endTime, "12:00"), stack: !!a.stack
+    endDay: day(a.endDay, 2), endTime: cleanTime(a.endTime, "12:00"), stack: !!a.stack,
+    // The specific date ranges the discount runs (e.g. Sat 5 PM -> Tue noon).
+    windows: (Array.isArray(a.windows) ? a.windows : []).slice(0, 120).map(function (w) {
+      return { start: cleanStamp(w && w.start), end: cleanStamp(w && w.end) };
+    }).filter(function (w) { return w.start && w.end && w.end > w.start; })
   };
   return { discounts: discounts, autoDiscount: autoDiscount };
 }
@@ -186,6 +190,7 @@ function orderHtml(o, forOwner) {
       (l.shade ? " <b>" + esc(l.shade) + "</b>" : "") + " <span style=\"color:#7c8fa3\">" + esc(l.size) + "</span></td>" +
       "<td " + td + " align=\"right\">" + esc(l.line) + "</td></tr>";
   }).join("");
+  const raw = function (k, html) { return html ? "<tr><td style=\"padding:3px 8px;color:#53687e\">" + k + "</td><td style=\"padding:3px 8px\">" + html + "</td></tr>" : ""; };
   const line = function (k, v) { return v ? "<tr><td style=\"padding:3px 8px;color:#53687e\">" + k + "</td><td style=\"padding:3px 8px\">" + esc(v) + "</td></tr>" : ""; };
   return '<div style="font-family:Arial,sans-serif;max-width:560px;color:#132433">' +
     '<h2 style="margin:0 0 4px">' + (forOwner ? "New order " : "Thanks for your order — ") + esc(o.order_number) + '</h2>' +
@@ -197,11 +202,16 @@ function orderHtml(o, forOwner) {
       line("Subtotal", o.subtotal) + line("Discount", o.discount) + line("Tax", o.tax) +
       line("Delivery", o.delivery) + '<tr><td style="padding:3px 8px"><b>Total</b></td><td style="padding:3px 8px"><b>' + esc(o.total) + '</b></td></tr>' +
     '</table>' +
-    '<h3 style="margin:18px 0 6px">Delivering to</h3><table>' +
-      line("Name", o.customer + (o.shop ? " · " + o.shop : "")) + line("License", o.license) +
-      line("Phone", o.phone) + line("Email", o.email) + line("Address", o.address) +
-      line("Notes", o.delivery_notes) + line("Payment", o.payment_method) +
+    '<h3 style="margin:18px 0 6px">Customer</h3><table>' +
+      line("Name", o.customer) + line("Shop", o.shop) + line("License", o.license) +
+      raw("Phone", o.phone ? '<a href="tel:' + esc(String(o.phone).replace(/[^\d+]/g, "")) + '">' + esc(o.phone) + '</a>' : "") +
+      raw("Email", o.email ? '<a href="mailto:' + esc(o.email) + '">' + esc(o.email) + '</a>' : "") +
     '</table>' +
+    '<h3 style="margin:18px 0 6px">Deliver to</h3>' +
+    '<p style="margin:0 8px;line-height:1.5">' + esc(o.address).replace(/\n/g, "<br>") +
+      (forOwner ? '<br><a href="https://www.google.com/maps/search/?api=1&query=' +
+        encodeURIComponent(String(o.address || "").replace(/\n/g, ", ")) + '">Open in Google Maps</a>' : "") + '</p>' +
+    '<table style="margin-top:8px">' + line("Notes", o.delivery_notes) + line("Payment", o.payment_method) + '</table>' +
     (forOwner ? "" : '<p style="color:#53687e">We\'ll confirm by text or call, then deliver next day. Questions? Just reply to this email.</p>') +
     '</div>';
 }
