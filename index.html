@@ -1066,7 +1066,8 @@ function smsText(o){
   const shown = items.slice(0,6);
   if(items.length > 6) shown.push("+"+(items.length-6)+" more (see email)");
   return "NEW ORDER "+o.code+"\n"+
-    o.name+(o.shop?" ("+o.shop+")":"")+" "+o.phone+"\n"+
+    o.name+(o.shop?" ("+o.shop+")":"")+"\n"+
+    o.phone+(o.email?" | "+o.email:"")+"\n"+
     money(o.totals.total)+" - "+(o.pay.when==="now" ? "PAID via "+o.pay.label : "collect on delivery ("+o.pay.label+")")+"\n"+
     o.addr.replace(/\n/g,", ")+"\n"+
     shown.join("\n");
