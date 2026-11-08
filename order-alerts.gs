@@ -136,23 +136,9 @@ function doPost(e) {
       result.email = true;
     } catch (err) { result.emailError = String(err); }
 
-    if (!CONFIG.TEXTBELT_KEY) {
-      result.smsError = "TEXTBELT_KEY is blank — paste your Textbelt key into CONFIG";
-      console.log(result.smsError);
-    } else {
+    if (CONFIG.TEXTBELT_KEY) {
       String(CONFIG.OWNER_PHONE).split(",").forEach(function (num) {
-        const msg = o.sms_text || o.subject;
-        let r = sendText(num.trim(), msg);
-        if (!r.success) {
-          // If Textbelt refuses it, retry with the email spelled out
-          // (jane at gmail dot com), which filters never treat as a link.
-          console.log("Text failed, retrying with email spelled out: " + JSON.stringify(r));
-          const plain = String(msg).replace(/([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, function (m, u, d) {
-            return u + " at " + d.replace(/\./g, " dot ");
-          });
-          r = sendText(num.trim(), plain);
-        }
-        console.log("Textbelt result for " + num.trim() + ": " + JSON.stringify(r));
+        const r = sendText(num.trim(), o.sms_text || o.subject);
         if (r.success) result.sms = true; else result.smsError = r.error || "text failed";
       });
     }
@@ -240,13 +226,10 @@ function testSetup() {
     "This is a test. Real orders from the site will arrive here the moment a customer taps Submit.");
   Logger.log("Test email sent to " + CONFIG.OWNER_EMAIL);
   if (CONFIG.TEXTBELT_KEY) {
-    const sample = "NEW ORDER TEST\nJane Doe (Glow Studio)\n(336) 555-0100\nEmail: jane@gmail.com\n$13.88 - PAID via Cash App";
-    const r = sendText(String(CONFIG.OWNER_PHONE).split(",")[0].trim(), sample);
+    const r = sendText(String(CONFIG.OWNER_PHONE).split(",")[0].trim(), CONFIG.STORE_NAME + ": order text alerts are working.");
     Logger.log("Text result: " + JSON.stringify(r));
-    if (r.success) Logger.log("TEXT OK — " + r.quotaRemaining + " texts left on your Textbelt key.");
-    else Logger.log("TEXT FAILED — reason from Textbelt: " + (r.error || "unknown"));
   } else {
-    Logger.log("TEXTBELT_KEY is BLANK — paste your Textbelt key into CONFIG, Save, and run this again.");
+    Logger.log("No TEXTBELT_KEY yet — skipping the test text.");
   }
   Logger.log("Emails left today: " + MailApp.getRemainingDailyQuota());
 }
