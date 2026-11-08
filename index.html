@@ -901,8 +901,43 @@ const BASE_CATALOG = [
   ["Pump — fits Gallon","Tools","each",3.00,""],
   ["Wrap Cap","Tools","each",6.95,"Choose your color.",["Black","Yellow","Red","Blue","Pink"]],
   ["Apron","Tools","each",22.95,""],
-  ["Shampoo Cape","Tools","each",24.95,""],
-  ["Styling Cape","Tools","each",24.95,""]
+  ["Shampoo Cape","Tools","each",25.95,""],
+  ["Styling Cape","Tools","each",24.95,""],
+  ["Neck Strips (pack of 5)","Tools","pack",21.95,"",null,"t_neckstrips"],
+
+  // JAPANESE SHEARS
+  ["Ace CK 72","Japanese Shears","5.5 in",299.00,"Japanese Collection shear.",null,"sh_ace_ck_72_5_5_in"],
+  ["Ace CK 72","Japanese Shears","6.0 in",299.00,"Japanese Collection shear.",null,"sh_ace_ck_72_6_0_in"],
+  ["Ace CK 72","Japanese Shears","7.0 in",299.00,"Japanese Collection shear.",null,"sh_ace_ck_72_7_0_in"],
+  ["Ace CK 72L","Japanese Shears","5.5 in",299.00,"Japanese Collection shear.",null,"sh_ace_ck_72l_5_5_in"],
+  ["Pro AK 27","Japanese Shears","5.5 in",349.00,"Japanese Collection shear.",null,"sh_pro_ak_27_5_5_in"],
+  ["Pro AK 27","Japanese Shears","6.0 in",349.00,"Japanese Collection shear.",null,"sh_pro_ak_27_6_0_in"],
+  ["Pro AK 19","Japanese Shears","5.5 in",349.00,"Japanese Collection shear.",null,"sh_pro_ak_19_5_5_in"],
+  ["Pro AK 35","Japanese Shears","5.5 in",349.00,"Japanese Collection shear.",null,"sh_pro_ak_35_5_5_in"],
+  ["Pro AK 41.3","Japanese Shears","5.5 in",379.00,"Japanese Collection shear.",null,"sh_pro_ak_41_3_5_5_in"],
+  ["Supreme DK 17","Japanese Shears","5.5 in",399.00,"Japanese Collection shear.",null,"sh_supreme_dk_17_5_5_in"],
+  ["Supreme DK 17","Japanese Shears","6.0 in",399.00,"Japanese Collection shear.",null,"sh_supreme_dk_17_6_0_in"],
+  ["Pro Master AK 26","Japanese Shears","5.5 in",499.00,"Japanese Collection shear.",null,"sh_pro_master_ak_26_5_5_in"],
+  ["Pro Master AK 26","Japanese Shears","6.0 in",499.00,"Japanese Collection shear.",null,"sh_pro_master_ak_26_6_0_in"],
+  ["Pro Master AK 26","Japanese Shears","7.0 in",499.00,"Japanese Collection shear.",null,"sh_pro_master_ak_26_7_0_in"],
+  ["Pro Master AK 26T","Japanese Shears","5.5 in",499.00,"Japanese Collection shear.",null,"sh_pro_master_ak_26t_5_5_in"],
+  ["Pro Master AK 26L","Japanese Shears","5.5 in",499.00,"Japanese Collection shear.",null,"sh_pro_master_ak_26l_5_5_in"],
+  ["Supreme Master MA02","Japanese Shears","5.5 in",599.00,"VG10 Collection shear.",null,"sh_supreme_master_ma02_5_5_in"],
+  ["Supreme Master MA02","Japanese Shears","6.0 in",599.00,"VG10 Collection shear.",null,"sh_supreme_master_ma02_6_0_in"],
+  ["Supreme Master MA02","Japanese Shears","7.0 in",599.00,"VG10 Collection shear.",null,"sh_supreme_master_ma02_7_0_in"],
+  ["Elite Master FX001","Japanese Shears","5.5 in",1599.00,"Swedish Collection shear.",null,"sh_elite_master_fx001_5_5_in"],
+  ["Elite Master FX001","Japanese Shears","6.0 in",1599.00,"Swedish Collection shear.",null,"sh_elite_master_fx001_6_0_in"],
+
+  // HOLIDAY FAVORS — 1 oz minis
+  ["Papaya Punch Body Butter","Holiday Favors","1 oz",3.00,"Holiday favor size.",null,"hf_papaya_punch_body_butter"],
+  ["Coconut Milk Body Butter","Holiday Favors","1 oz",3.00,"Holiday favor size.",null,"hf_coconut_milk_body_butter"],
+  ["Banana & Coco Body Butter","Holiday Favors","1 oz",3.00,"Holiday favor size.",null,"hf_banana_coco_body_butter"],
+  ["Coconut Milk Body Wash","Holiday Favors","1 oz",3.00,"Holiday favor size.",null,"hf_coconut_milk_body_wash"],
+  ["Organic Complex","Holiday Favors","1 oz",3.00,"Holiday favor size.",null,"hf_organic_complex"],
+  ["Growth Creme","Holiday Favors","1 oz",3.00,"Holiday favor size.",null,"hf_growth_creme"],
+  ["Natural Oil","Holiday Favors","1 oz",3.00,"Holiday favor size.",null,"hf_natural_oil"],
+  ["Sea Moss Braid, Loc & Edge Gel","Holiday Favors","1 oz",3.00,"Holiday favor size.",null,"hf_sea_moss_braid_loc_edge_gel"],
+  ["Moisture Lock w/ Shea Butter","Holiday Favors","1 oz",3.00,"Holiday favor size.",null,"hf_moisture_lock_w_shea_butter"]
 ].map((function(){
   // Rows without a fixed id keep the numbering they always had (p0, p1, ...),
   // so carts and saved price edits still line up with the right product.
@@ -1113,7 +1148,7 @@ let settings = mergeSettings(loadJSON(LS_SET, null));
 /* Bump this whenever BASE_CATALOG gains structure (shades, categories,
    new products). A catalog saved by an older build would otherwise override
    the built-in one forever, and the new structure would never appear. */
-const CATALOG_VERSION = 5;
+const CATALOG_VERSION = 6;
 
 /* Rebuild the catalog from the shipped list, carrying over any price, name
    or size the owner edited on this device. Structure always comes from the
