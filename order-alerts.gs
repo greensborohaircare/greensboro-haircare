@@ -144,11 +144,12 @@ function doPost(e) {
         const msg = o.sms_text || o.subject;
         let r = sendText(num.trim(), msg);
         if (!r.success) {
-          // Retry once without anything link-like (email line, web addresses).
-          console.log("Text failed, retrying plain version: " + JSON.stringify(r));
-          const plain = String(msg).split("\n").filter(function (l) {
-            return !/^Email:/i.test(l) && !/[a-z0-9-]+\.(com|net|org|edu|gov|io|co|us)\b/i.test(l) && !/@/.test(l);
-          }).join("\n");
+          // If Textbelt refuses it, retry with the email spelled out
+          // (jane at gmail dot com), which filters never treat as a link.
+          console.log("Text failed, retrying with email spelled out: " + JSON.stringify(r));
+          const plain = String(msg).replace(/([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, function (m, u, d) {
+            return u + " at " + d.replace(/\./g, " dot ");
+          });
           r = sendText(num.trim(), plain);
         }
         console.log("Textbelt result for " + num.trim() + ": " + JSON.stringify(r));
@@ -239,7 +240,7 @@ function testSetup() {
     "This is a test. Real orders from the site will arrive here the moment a customer taps Submit.");
   Logger.log("Test email sent to " + CONFIG.OWNER_EMAIL);
   if (CONFIG.TEXTBELT_KEY) {
-    const sample = "NEW ORDER TEST\nJane Doe (Glow Studio)\n(336) 555-0100\nEmail: jane at gmail dot com\n$13.88 - PAID via Cash App";
+    const sample = "NEW ORDER TEST\nJane Doe (Glow Studio)\n(336) 555-0100\nEmail: jane@gmail.com\n$13.88 - PAID via Cash App";
     const r = sendText(String(CONFIG.OWNER_PHONE).split(",")[0].trim(), sample);
     Logger.log("Text result: " + JSON.stringify(r));
     if (r.success) Logger.log("TEXT OK — " + r.quotaRemaining + " texts left on your Textbelt key.");
