@@ -326,6 +326,11 @@ footer b{color:var(--text-2)}
   background:var(--surface); font-size:16px; text-transform:uppercase; letter-spacing:.04em}
 .discountrow input:focus{border-color:var(--accent); outline:none; box-shadow:0 0 0 3px var(--accent-soft)}
 .discountrow .btn{width:auto; flex:0 0 auto; padding:11px 18px; font-size:14.5px; border-radius:var(--r-sm)}
+.addr3{display:grid; grid-template-columns:1fr 84px 110px; gap:10px}
+.addr3 select{width:100%; padding:11px 10px; border:1px solid var(--line); border-radius:var(--r-sm);
+  font:inherit; background:var(--surface); color:var(--text)}
+.opt{font-weight:400; color:var(--text-3); font-size:12.5px}
+@media (max-width:420px){ .addr3{grid-template-columns:1fr 1fr} .addr3 .field:first-child{grid-column:1/-1} }
 .promo{display:flex; gap:12px; align-items:center; margin:16px 0 4px; padding:13px 15px;
   border-radius:var(--r); border:1px solid var(--line); background:var(--surface); box-shadow:var(--shadow)}
 .promo .pct{flex:0 0 auto; font-family:"Outfit",sans-serif; font-weight:700; font-size:20px;
@@ -587,12 +592,33 @@ p.dim{color:var(--text-3); font-size:13.5px; line-height:1.5}
       <input id="fEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@shop.com">
       <div class="hint">Your receipt copy goes here.</div>
     </div>
+    <div class="sec-label" style="margin-top:4px">Delivery address</div>
     <div class="field">
-      <label for="fAddr">Delivery address <span class="req">*</span></label>
-      <textarea id="fAddr" autocomplete="street-address" placeholder="Street, suite, city, ZIP"></textarea>
+      <label for="fStreet">Street address <span class="req">*</span></label>
+      <input id="fStreet" autocomplete="address-line1" placeholder="123 Main St">
     </div>
     <div class="field">
-      <label for="fNotes">Delivery notes <span class="req">*</span></label>
+      <label for="fUnit">Suite, unit or apt <span class="opt">(optional)</span></label>
+      <input id="fUnit" autocomplete="address-line2" placeholder="Suite 4">
+    </div>
+    <div class="addr3">
+      <div class="field">
+        <label for="fCity">City <span class="req">*</span></label>
+        <input id="fCity" autocomplete="address-level2" placeholder="Greensboro">
+      </div>
+      <div class="field">
+        <label for="fState">State <span class="req">*</span></label>
+        <select id="fState" autocomplete="address-level1">
+          <option value="NC" selected>NC</option><option value="SC">SC</option><option value="VA">VA</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fZip">ZIP <span class="req">*</span></label>
+        <input id="fZip" autocomplete="postal-code" inputmode="numeric" maxlength="10" placeholder="27401">
+      </div>
+    </div>
+    <div class="field">
+      <label for="fNotes">Delivery notes <span class="opt">(optional)</span></label>
       <textarea id="fNotes" placeholder="Best time to drop off, where to leave it, gate code…"></textarea>
       <div class="hint">Let us know how to find you — a gate code, a buzzer, which door.</div>
     </div>
@@ -1072,6 +1098,7 @@ async function sendOrderAlert(o){
         phone: o.phone,
         email: o.email || "",
         address: o.addr,
+        street: o.street, unit: o.unit, city: o.city, state: o.state, zip: o.zip,
         delivery_notes: o.notes || "",
         payment_method: o.pay.label,
         payment_status: o.pay.when === "now"
@@ -1569,16 +1596,24 @@ function orderCode(){
 }
 
 function buildOrder(){
+  const o = buildOrderRaw();
+  o.addr = addressLines(o).join("\n");
+  return o;
+}
+function buildOrderRaw(){
   const t = computeTotals();
   const payId = (document.querySelector('input[name="paym"]:checked')||{}).value || "cash";
   const payOpt = payOptions().filter(o=>o.id===payId)[0] || payOptions()[0];
   return {
     code: orderCode(),
     placedAt: new Date(),
-    name:$("fName").value.trim(), shop:$("fShop").value.trim(),
-    license:$("fLicense").value.trim(),
-    phone:$("fPhone").value.trim(), email:$("fEmail").value.trim(),
-    addr:$("fAddr").value.trim(), notes:$("fNotes").value.trim(),
+    name:niceCase($("fName").value,"name"), shop:squish($("fShop").value),
+    license:squish($("fLicense").value).toUpperCase(),
+    phone:nicePhone($("fPhone").value),
+    email:squish($("fEmail").value).toLowerCase().replace(/\s/g,""),
+    street:niceCase($("fStreet").value,true), unit:niceCase($("fUnit").value,true),
+    city:niceCase($("fCity").value), state:$("fState").value, zip:niceZip($("fZip").value),
+    addr:"", notes:squish($("fNotes").value),
     discountCode: t.discount>0 ? t.discountLabel : "",
     pay:payOpt, totals:t
   };
@@ -1643,11 +1678,15 @@ function receiptText(o){
   L.push(o.placedAt.toLocaleString("en-US"));
   L.push("");
   L.push("CUSTOMER");
-  L.push("  "+o.name+(o.shop?" ("+o.shop+")":""));
-  if(o.license) L.push("  License: "+o.license);
-  L.push("  "+o.phone+(o.email?" | "+o.email:""));
-  L.push("  "+o.addr.replace(/\n/g,", "));
-  if(o.notes) L.push("  Notes: "+o.notes);
+  L.push("  Name:     "+o.name);
+  if(o.shop)    L.push("  Shop:     "+o.shop);
+  if(o.license) L.push("  License:  "+o.license);
+  L.push("  Phone:    "+o.phone);
+  if(o.email)   L.push("  Email:    "+o.email);
+  L.push("");
+  L.push("DELIVER TO");
+  o.addr.split("\n").forEach(l => L.push("  "+l));
+  if(o.notes) L.push("  Notes:    "+o.notes);
   L.push("");
   L.push("ITEMS");
   o.totals.items.forEach(l=>{
@@ -1863,9 +1902,51 @@ const REQUIRED = [
   ["fShop",    "your shop or salon name"],
   ["fPhone",   "a phone number"],
   ["fEmail",   "an email address"],
-  ["fAddr",    "a delivery address"],
-  ["fNotes",   "your delivery notes"]
+  ["fStreet",  "your street address"],
+  ["fCity",    "your city"],
+  ["fZip",     "your ZIP code"]
 ];
+
+/* ---------- tidy what customers type, so every order reads the same ---------- */
+function squish(v){ return String(v||"").replace(/\s+/g," ").trim(); }
+/* "john SMITH" -> "John Smith", but leaves things like "McDonald" or "LLC" alone if typed that way */
+/* Capitalise word by word: "jane DOE" -> "Jane Doe". Words typed all-lowercase
+   always get a capital; all-caps words longer than 3 letters are softened
+   ("GREENSBORO" -> "Greensboro") but short ones like NW, NC, LLC are kept. */
+function niceCase(v, keepCaps){
+  return squish(v).split(" ").map(function(w){
+    if(!w) return w;
+    const letters = w.replace(/[^A-Za-z]/g,"");
+    if(!letters) return w;
+    // Street directions read as NW, SE, etc.
+    if(keepCaps === true && /^(n|s|e|w|ne|nw|se|sw)[.,]?$/i.test(w)) return w.toUpperCase();
+    const allLow = letters === letters.toLowerCase(), allUp = letters === letters.toUpperCase();
+    if(allLow || (allUp && !keepCaps && letters.length > 3) || (allUp && keepCaps === "name" && letters.length > 1))
+      return w.toLowerCase().replace(/(^|[\-'/.])([a-z])/g, (m,a,b)=>a+b.toUpperCase());
+    return w;
+  }).join(" ");
+}
+/* 10-digit US numbers -> (336) 555-0100. Anything else is left as typed. */
+function nicePhone(v){
+  let d = String(v||"").replace(/\D/g,"");
+  if(d.length === 11 && d[0] === "1") d = d.slice(1);
+  return d.length === 10 ? "("+d.slice(0,3)+") "+d.slice(3,6)+"-"+d.slice(6) : squish(v);
+}
+function niceZip(v){
+  const d = String(v||"").replace(/\D/g,"");
+  return d.length === 9 ? d.slice(0,5)+"-"+d.slice(5) : d.slice(0,5);
+}
+/* Street, unit, "City, ST 12345" as separate lines. */
+function addressLines(o){
+  return [o.street + (o.unit ? ", " + o.unit : ""), o.city + ", " + o.state + " " + o.zip];
+}
+/* Fix the boxes in place as people leave them, so they see the clean version. */
+[["fName",v=>niceCase(v,"name")],["fShop",squish],["fCity",v=>niceCase(v)],["fStreet",v=>niceCase(v,true)],["fUnit",v=>niceCase(v,true)],
+ ["fPhone",nicePhone],["fZip",niceZip],["fEmail",v=>squish(v).toLowerCase().replace(/\s/g,"")]]
+.forEach(function(f){
+  const el = $(f[0]); if(!el) return;
+  el.addEventListener("blur", function(){ if(this.value.trim()) this.value = f[1](this.value); });
+});
 
 function clearFieldErrors(){
   REQUIRED.forEach(function(f){ $(f[0]).classList.remove("bad"); });
@@ -1895,8 +1976,21 @@ $("placeOrder").addEventListener("click", function(){
     if(first) $(first[0]).focus();
     return;
   }
+  const phoneDigits = $("fPhone").value.replace(/\D/g,"").replace(/^1(?=\d{10}$)/,"");
+  if(phoneDigits.length !== 10){
+    err.textContent = "That phone number needs all 10 digits, area code first \u2014 like (336) 555-0100.";
+    err.hidden=false; $("fPhone").classList.add("bad"); $("fPhone").focus();
+    $("coSheet").querySelector(".sheet-body").scrollTop=0;
+    return;
+  }
+  if(!/^\d{5}(-?\d{4})?$/.test($("fZip").value.trim())){
+    err.textContent = "The ZIP code should be 5 digits \u2014 like 27401.";
+    err.hidden=false; $("fZip").classList.add("bad"); $("fZip").focus();
+    $("coSheet").querySelector(".sheet-body").scrollTop=0;
+    return;
+  }
   // A typo'd email means the receipt bounces, so catch the obvious ones.
-  const email = $("fEmail").value.trim();
+  const email = $("fEmail").value.trim().toLowerCase().replace(/\s/g,"");
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){
     err.textContent = "That email doesn't look complete — check for a typo so your receipt reaches you.";
     err.hidden=false; $("fEmail").classList.add("bad"); $("fEmail").focus();
