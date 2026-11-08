@@ -1397,10 +1397,8 @@ function computeTotals(){
   const autoDisc = (w && w.live && items.length) ? Math.round(subtotal * w.pct) / 100 : 0;
 
   let discount = 0, discountLabel = "", discountSource = "";
-  if(autoDisc > 0 && codeDisc > 0 && w.stack){
-    discount = Math.min(subtotal, autoDisc + codeDisc);
-    discountLabel = w.label+" "+w.pct+"% + "+activeCode.code; discountSource = "both";
-  } else if(autoDisc > 0 && autoDisc >= codeDisc){
+  // Only ONE discount ever applies: whichever saves the customer more.
+  if(autoDisc > 0 && autoDisc >= codeDisc){
     discount = autoDisc; discountLabel = w.label+" "+w.pct+"%"; discountSource = "auto";
   } else if(codeDisc > 0){
     discount = codeDisc; discountLabel = activeCode.code; discountSource = "code";
@@ -2413,8 +2411,7 @@ function renderAdmin(tab){
         '<button type="button" class="btn ghost" id="addWin" style="width:auto">Add one date range</button>'+
         '<button type="button" class="btn ghost" id="clearEnded" style="width:auto">Remove ended dates</button>'+
       '</div>'+
-      '<label class="checkline" for="aStack"><input type="checkbox" id="aStack"'+(a.stack?" checked":"")+'>'+
-      '<span><b>Let codes stack on top</b><span>Off: the customer gets whichever saves more. On: both come off.</span></span></label>'+
+      '<div class="note" style="margin:0 0 12px">Discounts never combine. If a customer also enters a code while this is running, they get whichever one saves them more \u2014 never both.</div>'+
       '<div class="sec-label">Discount codes</div>';
     h += '<div class="note" style="margin-bottom:14px"><b>Codes customers can type at checkout.</b> '+
       'Percent takes that much off the subtotal; Dollars takes a flat amount off. '+
@@ -2605,7 +2602,7 @@ function collectAdmin(){
         on: $("aOn").checked,
         label: (v("aLabel")||"").trim() || "Weekend special",
         pct: Math.max(0, Math.min(100, Number(v("aPct"))||0)),
-        stack: $("aStack").checked,
+        stack: false,
         windows: windows
       };
     }
