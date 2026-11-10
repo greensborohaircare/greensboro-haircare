@@ -149,6 +149,28 @@ button{cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--ink-2); border-color:var(--ink-2); color:#fff}
 
 /* ---------- product list ---------- */
+.topcats{margin-top:18px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:16px; box-shadow:var(--shadow)}
+.topcats-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px}
+.topcats-head h2{font-size:17px; font-weight:600}
+.topcats-head span{font-size:13px; color:var(--text-3)}
+.topcats-head .swipe{display:none}
+@media (max-width:600px){.topcats-head .swipe{display:inline}}
+.topcats-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px}
+.topcat{display:flex; align-items:center; gap:12px; text-align:left; width:100%; padding:12px 14px; background:var(--surface-2);
+  border:1px solid var(--line); border-radius:var(--r-sm); color:var(--text); font:inherit; cursor:pointer}
+.topcat:hover,.topcat:focus-visible{border-color:var(--accent); background:var(--accent-soft)}
+.topcat .ic{flex:0 0 auto; font-size:20px; line-height:1}
+.topcat b{display:block; font-family:"Outfit",sans-serif; font-size:14.5px}
+.topcat small{display:block; font-size:12.5px; color:var(--text-3); margin-top:2px}
+.topcat[disabled]{opacity:.55; cursor:default}
+#codeWrap.codebox{display:block !important; margin:6px 0 18px; padding:14px; border:1px dashed var(--accent); border-radius:var(--r-sm); background:var(--accent-soft)}
+.codebox .sec-label{display:block; margin:0 0 8px}
+.codebox .discountrow input{min-width:0}
+@media (max-width:600px){
+  .topcats-grid{display:flex; overflow-x:auto; gap:10px; margin-inline:-16px; padding:0 16px 4px; scroll-snap-type:x mandatory; scrollbar-width:none}
+  .topcats-grid::-webkit-scrollbar{display:none}
+  .topcat{flex:0 0 72%; scroll-snap-align:start}
+}
 .listhead{display:flex; align-items:baseline; justify-content:space-between; margin:22px 0 10px; gap:12px}
 .listhead h2{font-size:17px; font-weight:600}
 .listhead .count{font-size:13px; color:var(--text-3)}
@@ -435,7 +457,7 @@ p.dim{color:var(--text-3); font-size:13.5px; line-height:1.5}
 .toast.show{transform:translate(-50%,0); opacity:1}
 
 @media print{
-  .topbar,.searchzone,.chips,.howto,.sheet-foot,.noprint,footer,.wrap>.band,.listhead,.plist{display:none !important}
+  .topbar,.searchzone,.chips,.howto,.topcats,.sheet-foot,.noprint,footer,.wrap>.band,.listhead,.plist{display:none !important}
   .scrim{display:none !important}
   .sheet{display:none !important}
   .sheet.open{
@@ -493,8 +515,16 @@ p.dim{color:var(--text-3); font-size:13.5px; line-height:1.5}
 </div>
 
 <div class="wrap">
+  <section class="topcats" id="topCats" aria-labelledby="topCatsTitle">
+    <div class="topcats-head">
+      <h2 id="topCatsTitle">Catalogs &amp; price lists</h2>
+      <span>Look through these before you pick your products<span class="swipe"> — swipe for more</span></span>
+    </div>
+    <div class="topcats-grid" id="topCatsList"></div>
+  </section>
+
   <div class="howto">
-    <div><span class="n">STEP 1</span><b>Find your products</b><span>Search or browse the full Influance line.</span></div>
+    <div><span class="n">STEP 1</span><b>Find your products</b><span>Check the catalogs above, then search or browse the full line.</span></div>
     <div><span class="n">STEP 2</span><b>Set quantities</b><span>Your total and NC sales tax update as you go.</span></div>
     <div><span class="n">STEP 3</span><b>We deliver next day</b><span>Pay now or when it arrives — your choice.</span></div>
   </div>
@@ -517,7 +547,6 @@ p.dim{color:var(--text-3); font-size:13.5px; line-height:1.5}
     <h3>Ordering with us</h3>
     <p id="aboutText">We carry the full Influance professional line and deliver across Greensboro and the Triad. Place your order by 6 PM and it arrives the next day.</p>
     <p><b>Questions before you order?</b> Call or text <a id="contactPhoneLink" href="tel:">(set your number)</a> or email <a id="contactEmailLink" href="mailto:">(set your email)</a>. A real person answers.</p>
-    <p style="margin-bottom:14px"><button class="catbtn" id="openCatalogs">📄 Browse catalogs &amp; price lists</button></p>
     <p style="font-size:13.5px;color:var(--text-3)">Prices shown are per unit. North Carolina sales tax is calculated at checkout and shown as its own line — nothing is added that you can't see.</p>
   </div>
 </div>
@@ -623,8 +652,8 @@ p.dim{color:var(--text-3); font-size:13.5px; line-height:1.5}
       <div class="hint">Let us know how to find you — a gate code, a buzzer, which door.</div>
     </div>
 
-    <button type="button" class="codetoggle" id="codeToggle" aria-expanded="false" aria-controls="codeWrap">Have a discount code?</button>
-    <div id="codeWrap" hidden>
+    <div id="codeWrap" class="codebox">
+      <label class="sec-label" for="fCode">Discount code</label>
       <div class="discountrow">
         <input id="fCode" placeholder="Enter your code" autocomplete="off" aria-label="Discount code">
         <button type="button" class="btn" id="applyCode">Apply</button>
@@ -1792,7 +1821,10 @@ $("shadeList").addEventListener("input", function(e){
   syncCartUI(); renderList();
 });
 
-$("openCatalogs").addEventListener("click", function(){ renderCatalogs(); show("catSheet"); });
+$("topCatsList").addEventListener("click", function(e){
+  const btn = e.target.closest("[data-cat]");
+  if(btn && !btn.disabled) openCatalog(btn.dataset.cat);
+});
 $("catBody").addEventListener("click", function(e){
   const btn = e.target.closest("[data-cat]");
   if(btn) openCatalog(btn.dataset.cat);
@@ -1815,13 +1847,6 @@ $("applyCode").addEventListener("click", function(){
     $("fCode").value = "";
   }
   applyDiscountCode();
-});
-$("codeToggle").addEventListener("click", function(){
-  const w = $("codeWrap"), open = w.hidden;
-  w.hidden = !open;
-  this.setAttribute("aria-expanded", String(open));
-  this.textContent = open ? "Hide discount code" : "Have a discount code?";
-  if(open) $("fCode").focus();
 });
 $("fCode").addEventListener("keydown", function(e){
   if(e.key === "Enter"){ e.preventDefault(); applyDiscountCode(); }
@@ -2055,6 +2080,19 @@ function renderShades(){
 }
 
 /* ---------- catalogs ---------- */
+function renderTopCats(){
+  const box = $("topCats"), list = settings.catalogs || [];
+  if(!box) return;
+  if(!list.length){ box.hidden = true; return; }
+  box.hidden = false;
+  $("topCatsList").innerHTML = list.map(function(c){
+    const pages = (CATALOG_PAGES[c.id]||[]).length;
+    return '<button type="button" class="topcat" data-cat="'+esc(c.id)+'"'+(pages?'':' disabled')+'>'+
+      '<span class="ic" aria-hidden="true">📄</span>'+
+      '<span><b>'+esc(c.title)+'</b><small>'+(pages ? esc(c.note||"") : 'Unavailable')+'</small></span>'+
+    '</button>';
+  }).join("");
+}
 function renderCatalogs(){
   const list = settings.catalogs || [];
   if(!list.length){ $("catBody").innerHTML = '<div class="empty">No catalogs have been added yet.</div>'; return; }
@@ -2638,7 +2676,7 @@ $("adSave").addEventListener("click", async function(){
     const changed = !base || base.price!==p.price || base.name!==p.name || base.size!==p.size;
     return Object.assign({}, p, {edited:changed});
   })});
-  applySettings(); renderChips(); renderList(); renderPromo();
+  applySettings(); renderTopCats(); renderChips(); renderList(); renderPromo();
   if(ORDER_ENDPOINT && adminPassword && promosChanged){
     const btn = this; btn.disabled = true; btn.textContent = "Saving to the live site\u2026";
     try{
@@ -2680,6 +2718,7 @@ try{
   renderChips();
   renderList();
   syncCartUI();
+  renderTopCats();
   renderPromo();
   loadLivePromos();
   // Keep the banner (and any open totals) right as the window opens or closes.
