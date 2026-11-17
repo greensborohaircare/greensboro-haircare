@@ -875,7 +875,7 @@ const BASE_CATALOG = [
   ["Honey Almond Leave In","Go Natural","4 oz",9.95,""],
   // GO NATURAL — coconut milk
   ["Coconut Milk Shampoo","Go Natural","8 oz",9.95,""],
-  ["Coconut Milk Leave In","Go Natural","8 oz",9.50,""],
+  ["Coconut Milk Leave In","Go Natural","8 oz",9.95,""],
   ["Coconut Milk Leave In","Go Natural","32 oz",22.95,""],
   ["Coconut Milk Super Hold Glazed Edges","Go Natural","4 oz",11.95,""],
   ["Curl Defining Crème","Go Natural","4 oz",9.95,""],
@@ -1224,7 +1224,7 @@ let settings = mergeSettings(loadJSON(LS_SET, null));
 /* Bump this whenever BASE_CATALOG gains structure (shades, categories,
    new products). A catalog saved by an older build would otherwise override
    the built-in one forever, and the new structure would never appear. */
-const CATALOG_VERSION = 7;
+const CATALOG_VERSION = 6;
 
 /* Rebuild the catalog from the shipped list, carrying over any price, name
    or size the owner edited on this device. Structure always comes from the
