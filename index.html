@@ -875,7 +875,7 @@ const BASE_CATALOG = [
   ["Honey Almond Leave In","Go Natural","4 oz",9.95,""],
   // GO NATURAL — coconut milk
   ["Coconut Milk Shampoo","Go Natural","8 oz",9.95,""],
-  ["Coconut Milk Leave In","Go Natural","8 oz",9.95,""],
+  ["Coconut Milk Leave In","Go Natural","8 oz",9.50,""],
   ["Coconut Milk Leave In","Go Natural","32 oz",22.95,""],
   ["Coconut Milk Super Hold Glazed Edges","Go Natural","4 oz",11.95,""],
   ["Curl Defining Crème","Go Natural","4 oz",9.95,""],
@@ -1224,7 +1224,7 @@ let settings = mergeSettings(loadJSON(LS_SET, null));
 /* Bump this whenever BASE_CATALOG gains structure (shades, categories,
    new products). A catalog saved by an older build would otherwise override
    the built-in one forever, and the new structure would never appear. */
-const CATALOG_VERSION = 6;
+const CATALOG_VERSION = 7;
 
 /* Rebuild the catalog from the shipped list, carrying over any price, name
    or size the owner edited on this device. Structure always comes from the
@@ -1432,8 +1432,9 @@ function computeTotals(){
   const items = cartItems();
   const subtotal = items.reduce((s,l)=> s + l.p.price*l.qty, 0);
 
-  // Tax is charged on the full subtotal first. The discount then comes off
-  // the combined subtotal + tax.
+  // Tax is charged on the full (original) subtotal. The discount is worked
+  // out from the original subtotal too, then subtracted after tax is added:
+  // total = subtotal + tax - discount.
   const rate = Number(settings.taxRate)||0;
   const taxable = Math.round(subtotal*100)/100;
   const tax = Math.round(taxable * rate) / 100;
@@ -1442,12 +1443,12 @@ function computeTotals(){
   let codeDisc = 0;
   if(activeCode && subtotal >= (activeCode.min||0) && codeTiming(activeCode) === "live"){
     codeDisc = activeCode.type === "pct"
-      ? Math.round(beforeDiscount * activeCode.value) / 100
-      : Math.min(activeCode.value, beforeDiscount);
+      ? Math.round(subtotal * activeCode.value) / 100
+      : Math.min(activeCode.value, subtotal);
     codeDisc = Math.round(codeDisc*100)/100;
   }
   const w = autoWindow();
-  const autoDisc = (w && w.live && items.length) ? Math.round(beforeDiscount * w.pct) / 100 : 0;
+  const autoDisc = (w && w.live && items.length) ? Math.round(subtotal * w.pct) / 100 : 0;
 
   let discount = 0, discountLabel = "", discountSource = "";
   // Only ONE discount ever applies: whichever saves the customer more.
@@ -1456,7 +1457,7 @@ function computeTotals(){
   } else if(codeDisc > 0){
     discount = codeDisc; discountLabel = activeCode.code; discountSource = "code";
   }
-  discount = Math.min(beforeDiscount, Math.round(discount*100)/100);
+  discount = Math.min(subtotal, Math.round(discount*100)/100);
 
   let delivery = Number(settings.deliveryFee)||0;
   if(settings.freeOver>0 && subtotal >= Number(settings.freeOver)) delivery = 0;
@@ -1520,7 +1521,7 @@ function totalsHTML(t){
   h += '<div class="trow grand"><span>Total</span><span>'+money(t.total)+'</span></div>';
   if(t.items.length){
     h += '<p class="taxnote">Tax is '+(Number(settings.taxRate)||0)+'% of '+money(t.taxable)+', rounded to the cent.'+
-         (t.discount>0 ? ' Your discount comes off the subtotal plus tax ('+money(t.beforeDiscount)+').' : '')+'</p>';
+         (t.discount>0 ? ' Your discount is taken from the '+money(t.subtotal)+' subtotal and subtracted after tax.' : '')+'</p>';
   }
   return h;
 }
@@ -2474,7 +2475,7 @@ function renderAdmin(tab){
     h += '<div class="note" style="margin-bottom:14px"><b>Codes customers can type at checkout.</b> '+
       'Percent takes that much off the subtotal; Dollars takes a flat amount off. '+
       '<b>Min</b> is the subtotal they have to reach \u2014 set it to 0 for any order. '+
-      'Untick <b>On</b> to retire a code without deleting it. Give a code <b>dates</b> and it only works between them (Greensboro time). Tax is charged on the full subtotal, and the discount comes off the subtotal plus tax.</div>'+
+      'Untick <b>On</b> to retire a code without deleting it. Give a code <b>dates</b> and it only works between them (Greensboro time). Tax is charged on the full subtotal. The discount is figured from the subtotal and subtracted after tax.</div>'+
       '<div class="dhead"><span>Code</span><span>Type</span><span>Value</span><span>Min $</span><span>On</span><span></span></div>'+
       '<div id="drows">'+ list.map(function(d,i){
         return '<div class="drow" data-i="'+i+'">'+
