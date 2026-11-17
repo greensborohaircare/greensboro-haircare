@@ -1432,16 +1432,22 @@ function computeTotals(){
   const items = cartItems();
   const subtotal = items.reduce((s,l)=> s + l.p.price*l.qty, 0);
 
-  // Discount comes off the subtotal, so tax is charged on what's actually paid.
+  // Tax is charged on the full subtotal first. The discount then comes off
+  // the combined subtotal + tax.
+  const rate = Number(settings.taxRate)||0;
+  const taxable = Math.round(subtotal*100)/100;
+  const tax = Math.round(taxable * rate) / 100;
+  const beforeDiscount = Math.round((subtotal + tax)*100)/100;
+
   let codeDisc = 0;
   if(activeCode && subtotal >= (activeCode.min||0) && codeTiming(activeCode) === "live"){
     codeDisc = activeCode.type === "pct"
-      ? Math.round(subtotal * activeCode.value) / 100
-      : Math.min(activeCode.value, subtotal);
+      ? Math.round(beforeDiscount * activeCode.value) / 100
+      : Math.min(activeCode.value, beforeDiscount);
     codeDisc = Math.round(codeDisc*100)/100;
   }
   const w = autoWindow();
-  const autoDisc = (w && w.live && items.length) ? Math.round(subtotal * w.pct) / 100 : 0;
+  const autoDisc = (w && w.live && items.length) ? Math.round(beforeDiscount * w.pct) / 100 : 0;
 
   let discount = 0, discountLabel = "", discountSource = "";
   // Only ONE discount ever applies: whichever saves the customer more.
@@ -1450,20 +1456,16 @@ function computeTotals(){
   } else if(codeDisc > 0){
     discount = codeDisc; discountLabel = activeCode.code; discountSource = "code";
   }
-  discount = Math.round(discount*100)/100;
-  const taxable = Math.max(0, Math.round((subtotal - discount)*100)/100);
-
-  const rate = Number(settings.taxRate)||0;
-  const tax = Math.round(taxable * rate) / 100;
+  discount = Math.min(beforeDiscount, Math.round(discount*100)/100);
 
   let delivery = Number(settings.deliveryFee)||0;
   if(settings.freeOver>0 && subtotal >= Number(settings.freeOver)) delivery = 0;
   if(items.length===0) delivery = 0;
 
-  const total = Math.round((taxable + tax + delivery)*100)/100;
+  const total = Math.round((beforeDiscount - discount + delivery)*100)/100;
   return {items:items, subtotal:subtotal, discount:discount, discountLabel:discountLabel,
           discountSource:discountSource, codeDiscount:codeDisc, taxable:taxable,
-          tax:tax, rate:rate, delivery:delivery, total:total};
+          tax:tax, rate:rate, beforeDiscount:beforeDiscount, delivery:delivery, total:total};
 }
 
 /* Current Greensboro date-time as "YYYY-MM-DDTHH:MM", so it compares
@@ -1509,16 +1511,16 @@ function lookupCode(raw){
 
 function totalsHTML(t){
   let h = '<div class="trow"><span>Subtotal ('+t.items.reduce((n,l)=>n+l.qty,0)+' items)</span><span>'+money(t.subtotal)+'</span></div>';
+  h += '<div class="trow"><span>'+esc(settings.taxLabel)+' \u00b7 '+(Number(settings.taxRate)||0)+'%</span><span>'+money(t.tax)+'</span></div>';
   if(t.discount > 0){
     h += '<div class="trow discount"><span>Discount \u00b7 '+esc(t.discountLabel)+'</span><span>\u2212'+money(t.discount)+'</span></div>';
   }
-  h += '<div class="trow"><span>'+esc(settings.taxLabel)+' \u00b7 '+(Number(settings.taxRate)||0)+'%</span><span>'+money(t.tax)+'</span></div>';
   if(t.delivery>0) h += '<div class="trow"><span>Delivery</span><span>'+money(t.delivery)+'</span></div>';
   else if(t.items.length) h += '<div class="trow"><span>Delivery</span><span>Free</span></div>';
   h += '<div class="trow grand"><span>Total</span><span>'+money(t.total)+'</span></div>';
   if(t.items.length){
-    h += '<p class="taxnote">Tax is '+(Number(settings.taxRate)||0)+'% of '+money(t.taxable)+
-         (t.discount>0 ? ' (after your discount)' : '')+', rounded to the cent.</p>';
+    h += '<p class="taxnote">Tax is '+(Number(settings.taxRate)||0)+'% of '+money(t.taxable)+', rounded to the cent.'+
+         (t.discount>0 ? ' Your discount comes off the subtotal plus tax ('+money(t.beforeDiscount)+').' : '')+'</p>';
   }
   return h;
 }
@@ -1739,8 +1741,8 @@ function receiptText(o){
   });
   L.push("");
   L.push("  Subtotal: "+money(o.totals.subtotal));
-  if(o.totals.discount>0) L.push("  Discount ("+o.discountCode+"): -"+money(o.totals.discount));
   L.push("  "+settings.taxLabel+": "+money(o.totals.tax)+" @ "+settings.taxRate+"%");
+  if(o.totals.discount>0) L.push("  Discount ("+o.discountCode+"): -"+money(o.totals.discount));
   if(o.totals.delivery>0) L.push("  Delivery: "+money(o.totals.delivery));
   L.push("  TOTAL: "+money(o.totals.total));
   L.push("");
@@ -2472,7 +2474,7 @@ function renderAdmin(tab){
     h += '<div class="note" style="margin-bottom:14px"><b>Codes customers can type at checkout.</b> '+
       'Percent takes that much off the subtotal; Dollars takes a flat amount off. '+
       '<b>Min</b> is the subtotal they have to reach \u2014 set it to 0 for any order. '+
-      'Untick <b>On</b> to retire a code without deleting it. Give a code <b>dates</b> and it only works between them (Greensboro time). Tax is charged on the discounted amount, which is how NC expects it.</div>'+
+      'Untick <b>On</b> to retire a code without deleting it. Give a code <b>dates</b> and it only works between them (Greensboro time). Tax is charged on the full subtotal, and the discount comes off the subtotal plus tax.</div>'+
       '<div class="dhead"><span>Code</span><span>Type</span><span>Value</span><span>Min $</span><span>On</span><span></span></div>'+
       '<div id="drows">'+ list.map(function(d,i){
         return '<div class="drow" data-i="'+i+'">'+
