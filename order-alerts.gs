@@ -30,6 +30,11 @@
    6. Open index.html, find   const ORDER_ENDPOINT = "";
       and paste the URL between the quotes. Re-upload the site.
 
+   ORDERS + PACKING SLIPS: every order is also kept here (the newest 150),
+   so the site's Owner tools -> Orders tab can list them and print a 4 x 6
+   packing slip for any of them from your iPhone or iPad. The order email
+   also has a "Print packing slip" button that opens it.
+
    DISCOUNTS: codes and the scheduled discount you save in the site's
    Owner tools are stored here (Project Settings -> Script Properties),
    so every customer gets them. The Owner tools password is ADMIN_PASSWORD.
@@ -109,9 +114,10 @@ function doPost(e) {
   try {
     const o = JSON.parse((e && e.postData && e.postData.contents) || "{}");
 
-    if (o.action === "login" || o.action === "savePromos") {
+    if (o.action === "login" || o.action === "savePromos" || o.action === "orders") {
       const bad = checkPassword(o.password);
       if (bad) return reply({ ok: false, error: bad });
+      if (o.action === "orders") return reply({ ok: true, orders: listOrders(o.order) });
       if (o.action === "savePromos") {
         const clean = cleanPromos(o);
         PropertiesService.getScriptProperties().setProperty("PROMOS", JSON.stringify(clean));
@@ -130,6 +136,8 @@ function doPost(e) {
     if (cache.get(o.order_number)) return reply({ ok: true, duplicate: true });
 
     const result = { email: false, sms: false, customer: false };
+
+    try { saveOrder(o); result.saved = true; } catch (err) { result.saveError = String(err); }
 
     // Packing slip first — if it ever fails, the order email still goes out.
     let slip = null;
@@ -212,7 +220,8 @@ function orderHtml(o, forOwner, hasSlip) {
     '<p style="margin:0 0 14px;color:#53687e">' + esc(o.placed_at) + '</p>' +
     (forOwner ? '<p style="padding:10px 12px;background:' + (/^PAID/.test(o.payment_status) ? "#e4f3eb" : "#fbeedd") +
       ';border-radius:6px;font-weight:bold">' + esc(o.payment_status) + '</p>' : "") +
-    (forOwner && hasSlip ? '<p style="margin:0 0 14px;color:#53687e">\uD83D\uDCCE Packing slip attached (4 x 6). Tap it, then Share \u2192 Print.</p>' : "") +
+    (forOwner && slipLink(o) ? '<p style="margin:0 0 14px"><a href="' + esc(slipLink(o)) + '" style="display:inline-block;padding:10px 16px;background:#132433;color:#fff;border-radius:6px;text-decoration:none;font-weight:bold">Print packing slip</a></p>' : "") +
+    (forOwner && hasSlip ? '<p style="margin:0 0 14px;color:#53687e">\uD83D\uDCCE Packing slip also attached (4 x 6). Tap it, then Share \u2192 Print.</p>' : "") +
     '<table style="border-collapse:collapse;width:100%">' + rows + '</table>' +
     '<table style="margin-top:10px">' +
       line("Subtotal", o.subtotal) + line("Discount", o.discount) + line("Tax", o.tax) +
@@ -367,6 +376,46 @@ function testPackingSlip() {
   MailApp.sendEmail({ to: CONFIG.OWNER_EMAIL, subject: CONFIG.STORE_NAME + " — sample packing slip",
     body: "Here is a sample 4 x 6 packing slip (14 products, so it runs onto a second slip).", attachments: [pdf] });
   Logger.log("Sample packing slip emailed to " + CONFIG.OWNER_EMAIL);
+}
+
+/* ---------- saved orders (for Owner tools -> Orders) ---------- */
+const KEEP_ORDERS = 150;
+function saveOrder(o) {
+  const rec = {
+    n: o.order_number, iso: String(o.placed_iso || ""), at: String(o.placed_at || ""),
+    c: o.customer || "", s: o.shop || "", ph: o.phone || "", r: o.sales_rep || "",
+    a: o.address || "", no: String(o.delivery_notes || "").slice(0, 500),
+    ps: o.payment_status || "", tot: o.total || "",
+    it: (o.items || []).map(function (l) { return { n: l.name || "", sh: l.shade || "", sz: l.size || "", q: l.qty }; })
+  };
+  let json = JSON.stringify(rec);
+  if (json.length > 8500) { rec.no = ""; json = JSON.stringify(rec); }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const props = PropertiesService.getScriptProperties();
+    props.setProperty("O:" + o.order_number, json);
+    let ids = [];
+    try { ids = JSON.parse(props.getProperty("ORDER_IDS") || "[]"); } catch (err) { ids = []; }
+    ids = ids.filter(function (x) { return x !== o.order_number; });
+    ids.unshift(o.order_number);
+    ids.slice(KEEP_ORDERS).forEach(function (old) { props.deleteProperty("O:" + old); });
+    props.setProperty("ORDER_IDS", JSON.stringify(ids.slice(0, KEEP_ORDERS)));
+  } finally { lock.releaseLock(); }
+}
+function listOrders(only) {
+  const props = PropertiesService.getScriptProperties();
+  let ids = [];
+  try { ids = JSON.parse(props.getProperty("ORDER_IDS") || "[]"); } catch (err) { ids = []; }
+  if (only) ids = ids.filter(function (x) { return x === only; });
+  return ids.slice(0, 100).map(function (id) {
+    try { return JSON.parse(props.getProperty("O:" + id) || "null"); } catch (err) { return null; }
+  }).filter(Boolean);
+}
+/* Link that opens this order's packing slip on the site (asks for the Owner password). */
+function slipLink(o) {
+  const u = String(o.page_url || "");
+  return /^https:\/\//.test(u) ? u.split("#")[0] + "#slip=" + encodeURIComponent(o.order_number) : "";
 }
 
 function reply(obj) {
