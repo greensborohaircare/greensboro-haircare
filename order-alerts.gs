@@ -4,7 +4,9 @@
    When a customer taps Submit on the order site, this script:
      1. Emails the full order to OWNER_EMAIL (sent from your Gmail, free)
      2. Texts a short version to OWNER_PHONE (Textbelt, about $3 per 50 texts)
-     3. Optionally emails the customer a copy of their receipt
+     3. Attaches a 4 x 6 inch PACKING SLIP (PDF) to your order email —
+        open it on the iPhone/iPad, tap Share -> Print, pick your AirPrint printer
+     4. Optionally emails the customer a copy of their receipt
 
    ONE-TIME SETUP (about 10 minutes)
    ---------------------------------
@@ -15,6 +17,10 @@
       they give you. Paste it into TEXTBELT_KEY below. (Leave it blank to
       get email only.)
    4. Pick "testSetup" in the function dropdown at the top and click Run.
+      Then pick "testPackingSlip" and click Run — you get a sample 4 x 6
+      packing slip by email. (Google asks permission for Docs/Drive the first
+      time: the slip is built as a temporary Google Doc, saved as a PDF,
+      then the Doc is moved to the trash.)
       Google asks for permission the first time — click through and Allow.
       You should get a test email and a test text within a minute.
    5. Click Deploy -> New deployment -> gear icon -> Web app.
@@ -37,6 +43,7 @@ const CONFIG = {
   OWNER_PHONE: "3363145959",               // where order texts go (10 digits, comma-separate for more)
   TEXTBELT_KEY: "6b22f9879b8c95659c3eb44fabb0b770ad64acd9cng1yzhv0XeN1Qzb3ycrgwQLM",                        // paste your Textbelt key here
   SEND_CUSTOMER_COPY: true,                // email the customer their receipt too
+  PACKING_SLIP: true,                      // attach a 4 x 6 packing slip PDF to your order email
   STORE_NAME: "Greensboro Haircare",
   ADMIN_PASSWORD: "Artis"                  // the password for the ⚙ Owner tools on the site — change it to your own
 };
@@ -124,12 +131,20 @@ function doPost(e) {
 
     const result = { email: false, sms: false, customer: false };
 
+    // Packing slip first — if it ever fails, the order email still goes out.
+    let slip = null;
+    if (CONFIG.PACKING_SLIP) {
+      try { slip = packingSlipPdf(o); result.slip = true; }
+      catch (err) { result.slipError = String(err); }
+    }
+
     try {
       MailApp.sendEmail({
         to: CONFIG.OWNER_EMAIL,
         subject: o.subject || ("New order " + o.order_number),
         body: o.full_receipt || "",
-        htmlBody: orderHtml(o, true),
+        htmlBody: orderHtml(o, true, !!slip),
+        attachments: slip ? [slip] : [],
         replyTo: o.email || undefined,
         name: CONFIG.STORE_NAME + " Orders"
       });
@@ -178,7 +193,7 @@ function sendText(phone, message) {
   }
 }
 
-function orderHtml(o, forOwner) {
+function orderHtml(o, forOwner, hasSlip) {
   const esc = function (s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -197,13 +212,14 @@ function orderHtml(o, forOwner) {
     '<p style="margin:0 0 14px;color:#53687e">' + esc(o.placed_at) + '</p>' +
     (forOwner ? '<p style="padding:10px 12px;background:' + (/^PAID/.test(o.payment_status) ? "#e4f3eb" : "#fbeedd") +
       ';border-radius:6px;font-weight:bold">' + esc(o.payment_status) + '</p>' : "") +
+    (forOwner && hasSlip ? '<p style="margin:0 0 14px;color:#53687e">\uD83D\uDCCE Packing slip attached (4 x 6). Tap it, then Share \u2192 Print.</p>' : "") +
     '<table style="border-collapse:collapse;width:100%">' + rows + '</table>' +
     '<table style="margin-top:10px">' +
       line("Subtotal", o.subtotal) + line("Discount", o.discount) + line("Tax", o.tax) +
       line("Delivery", o.delivery) + '<tr><td style="padding:3px 8px"><b>Total</b></td><td style="padding:3px 8px"><b>' + esc(o.total) + '</b></td></tr>' +
     '</table>' +
     '<h3 style="margin:18px 0 6px">Customer</h3><table>' +
-      line("Name", o.customer) + line("Shop", o.shop) + line("License", o.license) +
+      line("Name", o.customer) + line("Shop", o.shop) + line("License", o.license) + line("Sales rep", o.sales_rep) +
       raw("Phone", o.phone ? '<a href="tel:' + esc(String(o.phone).replace(/[^\d+]/g, "")) + '">' + esc(o.phone) + '</a>' : "") +
       raw("Email", o.email ? '<a href="mailto:' + esc(o.email) + '">' + esc(o.email) + '</a>' : "") +
     '</table>' +
@@ -214,6 +230,143 @@ function orderHtml(o, forOwner) {
     '<table style="margin-top:8px">' + line("Notes", o.delivery_notes) + line("Payment", o.payment_method) + '</table>' +
     (forOwner ? "" : '<p style="color:#53687e">We\'ll confirm by text or call, then deliver next day. Questions? Just reply to this email.</p>') +
     '</div>';
+}
+
+/* =====================================================================
+   PACKING SLIP — 4 x 6 inch PDF, no prices or payment info.
+   Built as a temporary Google Doc (exact page size), saved as PDF, and the
+   Doc is moved to the trash. Long orders continue onto extra slips; every
+   slip repeats the order number and customer name and says "Slip 1 of 2".
+   ===================================================================== */
+function packingSlipPdf(o) {
+  const W = 288, H = 432, M = 16;            // 4 x 6 in, in points
+  const usable = H - 2 * M - 22;              // keep a safety gap so Docs never spills over
+  const colBox = 24, colQty = 34, colName = W - 2 * M - colBox - colQty;
+
+  const items = (o.items || []).map(function (l) {
+    const name = String(l.name || "") + (l.shade ? " — " + l.shade : "") + (l.size ? "  ·  " + l.size : "");
+    const lines = Math.max(1, Math.ceil(name.length / 26));
+    return { qty: String(l.qty || ""), name: name, h: 12 + lines * 15 };
+  });
+  const totalUnits = (o.items || []).reduce(function (n, l) { return n + (Number(l.qty) || 0); }, 0);
+
+  const addr = String(o.address || "").split("\n").filter(String);
+  const notes = String(o.delivery_notes || "").slice(0, 300);
+  const firstHead = 50 + 20 + 16 + (o.shop ? 15 : 0) + addr.length * 16 + 16 +
+                    (o.sales_rep ? 14 : 0) + (notes ? 14 + Math.ceil(notes.length / 40) * 13 : 0) + 14 + 24;
+  const contHead = 58 + 24;
+  const signoff = 26 + 4 * 26;
+
+  // Split the items into slips by height.
+  const pages = [];
+  let cur = [], room = usable - firstHead;
+  items.forEach(function (it) {
+    if (it.h > room && cur.length) { pages.push(cur); cur = []; room = usable - contHead; }
+    cur.push(it); room -= it.h;
+  });
+  pages.push(cur);
+  if (room < signoff) pages.push([]);          // sign-off box gets its own slip if it won't fit
+  const n = pages.length;
+
+  const doc = DocumentApp.create("Packing slip " + o.order_number);
+  const body = doc.getBody();
+  body.setPageWidth(W).setPageHeight(H)
+      .setMarginTop(M).setMarginBottom(M).setMarginLeft(M).setMarginRight(M);
+
+  let first = true;
+  const para = function (text, size, bold, color) {
+    let p;
+    if (first) { p = body.getParagraphs()[0]; p.setText(text); first = false; }
+    else p = body.appendParagraph(text);
+    p.setSpacingBefore(0).setSpacingAfter(2).setLineSpacing(1);
+    const tx = p.editAsText();
+    tx.setFontFamily("Arial").setFontSize(size).setBold(!!bold).setForegroundColor(color || "#000000");
+    return p;
+  };
+  const labelValue = function (label, value, size) {
+    const p = para(label + value, size || 11, false);
+    p.editAsText().setBold(0, label.length - 1, true);
+    return p;
+  };
+  const styleTable = function (tbl, widths, fontSize) {
+    tbl.setBorderWidth(1).setBorderColor("#000000");
+    widths.forEach(function (w, i) { tbl.setColumnWidth(i, w); });
+    for (let r = 0; r < tbl.getNumRows(); r++) {
+      const row = tbl.getRow(r);
+      for (let c = 0; c < row.getNumCells(); c++) {
+        const cell = row.getCell(c);
+        cell.setPaddingTop(4).setPaddingBottom(4).setPaddingLeft(4).setPaddingRight(4);
+        cell.editAsText().setFontFamily("Arial").setFontSize(fontSize).setBold(false);
+        for (let k = 0; k < cell.getNumChildren(); k++) {
+          const ch = cell.getChild(k);
+          if (ch.getType() === DocumentApp.ElementType.PARAGRAPH) ch.asParagraph().setSpacingBefore(0).setSpacingAfter(0);
+        }
+      }
+    }
+    return tbl;
+  };
+
+  pages.forEach(function (rows, i) {
+    if (i > 0) body.appendPageBreak();
+    para((CONFIG.STORE_NAME || "").toUpperCase() + "   ·   SLIP " + (i + 1) + " OF " + n, 8, true, "#444444");
+    para("PACKING SLIP", 16, true);
+    labelValue("Order ", o.order_number + "   " + String(o.placed_at || "").replace(/:\d\d(?= [AP]M)/, ""), 10);
+
+    if (i === 0) {
+      para("DELIVER TO", 8, true, "#444444").setSpacingBefore(6);
+      para(o.customer || "", 15, true);
+      if (o.shop) para(o.shop, 11, false);
+      addr.forEach(function (line) { para(line, 12, false); });
+      labelValue("Phone: ", o.phone || "", 12);
+      if (o.sales_rep) labelValue("Sales rep: ", o.sales_rep, 10);
+      if (notes) labelValue("Delivery notes: ", notes, 11);
+    } else {
+      para("continued — " + (o.customer || ""), 11, true);
+    }
+
+    if (rows.length) {
+      const data = [["Got", "Qty", "Product · size"]].concat(rows.map(function (it) { return ["", it.qty, it.name]; }));
+      const tbl = styleTable(body.appendTable(data), [colBox, colQty, colName], 12);
+      const head = tbl.getRow(0);
+      for (let c = 0; c < 3; c++) head.getCell(c).setBackgroundColor("#e6e6e6").editAsText().setFontSize(9).setBold(true);
+      for (let r = 1; r < tbl.getNumRows(); r++) tbl.getRow(r).getCell(1).editAsText().setBold(true).setFontSize(14);
+    }
+
+    if (i === n - 1) {
+      labelValue("Total items: ", totalUnits + "  (" + items.length + " product" + (items.length === 1 ? "" : "s") + ")", 12)
+        .setSpacingBefore(6);
+      styleTable(body.appendTable([
+        ["Pulled & checked by (initials)", ""],
+        ["Date / time pulled", ""],
+        ["Driver verified (initials)", ""],
+        ["Delivered — date / time", ""]
+      ]), [150, W - 2 * M - 150], 9);
+    }
+  });
+
+  doc.saveAndClose();
+  const file = DriveApp.getFileById(doc.getId());
+  const pdf = file.getAs(MimeType.PDF).setName("Packing slip " + o.order_number + ".pdf");
+  file.setTrashed(true);
+  return pdf;
+}
+
+/* Run this from the editor to get a sample packing slip by email. */
+function testPackingSlip() {
+  const names = ["Hydrating Conditioner", "Moisture Lock w/ Shea Butter", "Coconut Milk Leave In",
+    "Coconut Milk Styling Foam", "Coconut Milk Super Hold Glazed Edges", "Body Butter — Coconut Milk"];
+  const items = [];
+  for (let i = 0; i < 14; i++) items.push({ name: names[i % names.length], size: i % 3 ? "8 oz" : "32 oz", qty: (i % 4) + 1 });
+  const o = {
+    order_number: "ORD-00000000-0000", placed_at: new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
+    customer: "Sample Customer", shop: "Sample Salon", phone: "(336) 555-0100", sales_rep: "Sample Rep",
+    address: "1000 Westside Drive, Suite 4\nGreensboro, NC 27405",
+    delivery_notes: "Side door by the parking lot. Call when outside.", items: items
+  };
+  const pdf = packingSlipPdf(o);
+  MailApp.sendEmail({ to: CONFIG.OWNER_EMAIL, subject: CONFIG.STORE_NAME + " — sample packing slip",
+    body: "Here is a sample 4 x 6 packing slip (14 products, so it runs onto a second slip).", attachments: [pdf] });
+  Logger.log("Sample packing slip emailed to " + CONFIG.OWNER_EMAIL);
 }
 
 function reply(obj) {
