@@ -650,6 +650,11 @@ p.dim{color:var(--text-3); font-size:13.5px; line-height:1.5}
         <input id="fZip" autocomplete="postal-code" inputmode="numeric" maxlength="10" placeholder="27401">
       </div>
     </div>
+    <div class="field" id="countyWrap">
+      <label for="fCounty">County <span class="req">*</span></label>
+      <select id="fCounty" style="width:100%; padding:11px 10px; border:1px solid var(--line); border-radius:var(--r-sm); background:var(--surface); font:inherit; color:inherit"></select>
+      <div class="hint" id="countyHint">Sets your sales tax. We fill it in from your ZIP &mdash; change it if your address is in a different county.</div>
+    </div>
     <div class="field">
       <label for="fNotes">Delivery notes <span class="opt">(optional)</span></label>
       <textarea id="fNotes" placeholder="Best time to drop off, where to leave it, gate code…"></textarea>
@@ -1012,6 +1017,58 @@ const BASE_CATALOG = [
   };
 })());
 
+/* North Carolina sales tax by county (state 4.75% + county + transit), from the
+   NC Department of Revenue "Current Sales and Use Tax Rates" table, effective
+   July 1, 2026. When NCDOR announces a change, edit the number here. */
+const NC_TAX_AS_OF = "July 1, 2026";
+const NC_COUNTY_RATES = {"Alamance":6.75,"Alexander":7.0,"Alleghany":7.0,"Anson":7.0,"Ashe":7.0,"Avery":6.75,"Beaufort":6.75,"Bertie":7.0,"Bladen":6.75,"Brunswick":6.75,"Buncombe":7.0,"Burke":6.75,"Cabarrus":7.0,"Caldwell":6.75,"Camden":6.75,"Carteret":6.75,"Caswell":6.75,"Catawba":7.0,"Chatham":7.0,"Cherokee":7.0,"Chowan":6.75,"Clay":7.0,"Cleveland":6.75,"Columbus":6.75,"Craven":6.75,"Cumberland":7.0,"Currituck":6.75,"Dare":6.75,"Davidson":7.0,"Davie":6.75,"Duplin":7.0,"Durham":7.5,"Edgecombe":7.0,"Forsyth":7.0,"Franklin":6.75,"Gaston":7.0,"Gates":6.75,"Graham":7.0,"Granville":6.75,"Greene":7.0,"Guilford":6.75,"Halifax":7.0,"Harnett":7.0,"Haywood":7.0,"Henderson":6.75,"Hertford":7.0,"Hoke":6.75,"Hyde":6.75,"Iredell":6.75,"Jackson":7.0,"Johnston":6.75,"Jones":7.0,"Lee":7.0,"Lenoir":6.75,"Lincoln":7.0,"Macon":6.75,"Madison":7.0,"Martin":7.0,"McDowell":6.75,"Mecklenburg":8.25,"Mitchell":6.75,"Montgomery":7.0,"Moore":7.0,"Nash":6.75,"New Hanover":7.0,"Northampton":6.75,"Onslow":7.0,"Orange":7.5,"Pamlico":6.75,"Pasquotank":7.0,"Pender":6.75,"Perquimans":6.75,"Person":6.75,"Pitt":7.0,"Polk":6.75,"Randolph":7.0,"Richmond":6.75,"Robeson":7.0,"Rockingham":7.0,"Rowan":7.0,"Rutherford":7.0,"Sampson":7.0,"Scotland":6.75,"Stanly":7.0,"Stokes":6.75,"Surry":7.0,"Swain":7.0,"Transylvania":6.75,"Tyrrell":6.75,"Union":6.75,"Vance":6.75,"Wake":7.25,"Warren":6.75,"Washington":7.0,"Watauga":6.75,"Wayne":6.75,"Wilkes":7.0,"Wilson":6.75,"Yadkin":6.75,"Yancey":6.75};
+/* NC ZIP -> county (index into the list above), used to pre-fill the County box.
+   A few ZIPs cross county lines, so the customer can change it. */
+const NC_ZIP_COUNTY = (function(names, packed){ const m={}; packed.split(',').forEach(function(p){ const a=p.split(':'); m[a[0]]=names[+a[1]]; }); return m; })(
+  Object.keys(NC_COUNTY_RATES), "27006:29,27007:85,27009:33,27010:33,27011:98,27012:33,27013:79,27014:29,27016:84,27017:85,27018:98,27019:84,27020:98,27021:84,27022:84,27023:33,27024:85,27025:78,27027:78,27028:29,27030:85,27031:85,27040:33,27041:85,27042:84,27043:84,27045:33,27046:84,27047:85,27048:78,27049:85,27050:33,27051:33,27052:84,27053:84,27054:79,27055:98,27094:33,27098:33,27099:33,27101:33,27102:33,27103:33,27104:33,27105:33,27106:33,27107:33,27108:33,27109:33,27110:33,27111:33,27113:33,27114:33,27115:33,27116:33,27117:33,27120:33,27127:33,27130:33,27150:33,27151:33,27152:33,27155:33,27156:33,27157:33,27198:33,27199:33,27201:0,27202:0,27203:75,27204:75,27205:75,27207:18,27208:18,27209:61,27212:16,27213:18,27214:40,27215:0,27216:0,27217:0,27220:0,27228:18,27229:61,27230:75,27231:67,27233:75,27235:40,27237:52,27239:28,27242:62,27243:67,27244:0,27247:61,27248:75,27249:40,27252:18,27253:0,27256:18,27258:0,27259:62,27260:40,27261:40,27262:40,27263:75,27264:40,27265:40,27268:40,27278:67,27281:62,27282:40,27283:40,27284:33,27285:33,27288:78,27289:78,27291:16,27292:28,27293:28,27294:28,27295:28,27298:75,27299:28,27301:40,27302:0,27305:16,27306:61,27310:40,27311:16,27312:18,27313:40,27314:16,27315:16,27316:75,27317:75,27320:78,27321:78,27322:78,27323:78,27325:62,27326:78,27330:52,27331:52,27332:52,27340:0,27341:75,27342:40,27343:72,27344:18,27349:0,27350:75,27351:28,27355:75,27356:61,27357:78,27358:40,27359:0,27360:28,27361:28,27370:75,27371:61,27373:28,27374:28,27375:78,27376:62,27377:40,27379:16,27395:40,27401:40,27402:40,27403:40,27404:40,27405:40,27406:40,27407:40,27408:40,27409:40,27410:40,27411:40,27412:40,27413:40,27415:40,27416:40,27417:40,27419:40,27420:40,27425:40,27427:40,27429:40,27435:40,27438:40,27455:40,27480:40,27495:40,27497:40,27498:40,27499:40,27501:42,27502:91,27503:31,27504:50,27505:42,27506:42,27507:38,27508:34,27509:38,27510:67,27511:91,27512:91,27513:91,27514:67,27515:67,27516:67,27517:67,27518:91,27519:91,27520:50,27521:42,27522:38,27523:91,27524:50,27525:34,27526:91,27527:50,27528:50,27529:91,27530:95,27531:95,27532:95,27533:95,27534:95,27536:90,27537:90,27539:91,27540:91,27541:72,27542:50,27543:42,27544:90,27545:91,27546:42,27549:34,27551:92,27552:42,27553:92,27555:50,27556:90,27557:63,27559:18,27560:91,27562:91,27563:92,27564:38,27565:38,27568:50,27569:50,27570:92,27571:91,27572:72,27573:72,27574:72,27576:50,27577:50,27581:38,27582:38,27583:72,27584:90,27586:92,27587:91,27588:91,27589:92,27591:91,27592:91,27593:50,27594:92,27596:34,27597:91,27599:67,27601:91,27602:91,27603:91,27604:91,27605:91,27606:91,27607:91,27608:91,27609:91,27610:91,27611:91,27612:91,27613:91,27614:91,27615:91,27616:91,27617:91,27619:91,27620:91,27621:91,27622:91,27623:91,27624:91,27625:91,27626:91,27627:91,27628:91,27629:91,27634:91,27635:91,27636:91,27640:91,27650:91,27656:91,27658:91,27661:91,27668:91,27675:91,27676:91,27690:91,27695:91,27697:91,27698:91,27699:91,27701:31,27702:31,27703:31,27704:31,27705:31,27706:31,27707:31,27708:31,27709:31,27710:31,27711:31,27712:31,27713:31,27715:31,27717:31,27722:31,27801:32,27802:63,27803:63,27804:63,27805:7,27806:6,27807:63,27808:6,27809:63,27810:6,27811:73,27812:73,27813:97,27814:6,27815:32,27816:63,27817:6,27818:45,27819:32,27820:65,27821:6,27822:97,27823:41,27824:47,27825:57,27826:47,27827:73,27828:73,27829:73,27830:95,27831:65,27832:65,27833:73,27834:73,27835:73,27836:73,27837:73,27839:41,27840:57,27841:57,27842:65,27843:41,27844:41,27845:65,27846:57,27847:7,27849:7,27850:41,27851:97,27852:32,27853:65,27854:65,27855:45,27856:63,27857:57,27858:73,27860:6,27861:57,27862:65,27863:95,27864:32,27865:6,27866:65,27867:65,27868:63,27869:65,27870:41,27871:57,27872:7,27873:97,27874:41,27875:47,27876:65,27877:65,27878:63,27879:73,27880:97,27881:32,27882:63,27883:97,27884:73,27885:47,27886:32,27887:41,27888:39,27889:6,27890:41,27891:63,27892:57,27893:97,27894:97,27895:97,27896:97,27897:65,27906:69,27907:69,27909:69,27910:45,27915:27,27916:26,27917:26,27919:71,27920:27,27921:14,27922:45,27923:26,27924:7,27925:88,27926:36,27927:26,27928:93,27929:26,27930:71,27932:20,27935:36,27936:27,27937:36,27938:36,27939:26,27941:26,27942:45,27943:27,27944:71,27946:36,27947:26,27948:27,27949:27,27950:26,27953:27,27954:27,27956:26,27957:7,27958:26,27959:27,27960:47,27962:93,27964:26,27965:26,27966:26,27967:7,27968:27,27969:36,27970:93,27972:27,27973:26,27974:14,27976:14,27978:27,27979:36,27980:20,27981:27,27982:27,27983:7,27985:71,27986:45,28001:83,28002:83,28006:35,28007:3,28009:83,28010:48,28012:35,28016:35,28017:22,28018:80,28019:80,28020:22,28021:35,28023:79,28024:80,28025:12,28026:12,28027:12,28031:59,28032:35,28033:54,28034:35,28035:59,28036:59,28037:54,28038:22,28039:79,28040:80,28041:79,28042:22,28043:80,28052:35,28053:35,28054:35,28055:35,28056:35,28070:59,28071:79,28072:79,28073:22,28074:80,28075:12,28076:80,28077:35,28078:59,28079:89,28080:54,28081:12,28082:12,28083:12,28086:22,28088:79,28089:22,28090:22,28091:3,28092:54,28093:54,28097:83,28098:35,28101:35,28102:3,28103:89,28104:89,28105:59,28106:59,28107:12,28108:89,28109:83,28110:89,28111:89,28112:89,28114:80,28115:48,28117:48,28119:3,28120:35,28123:48,28124:12,28125:79,28126:59,28127:83,28128:83,28129:83,28130:59,28133:3,28134:59,28135:3,28136:22,28137:83,28138:79,28139:80,28144:79,28145:79,28146:79,28147:79,28150:22,28151:22,28152:22,28159:79,28160:80,28163:83,28164:35,28166:48,28167:80,28168:54,28169:22,28170:3,28173:89,28174:89,28201:59,28202:59,28203:59,28204:59,28205:59,28206:59,28207:59,28208:59,28209:59,28210:59,28211:59,28212:59,28213:59,28214:59,28215:59,28216:59,28217:59,28218:59,28219:59,28220:59,28221:59,28222:59,28223:59,28224:59,28226:59,28227:59,28228:59,28229:59,28230:59,28231:59,28232:59,28233:59,28234:59,28235:59,28236:59,28237:59,28241:59,28242:59,28243:59,28244:59,28246:59,28247:59,28250:59,28253:59,28254:59,28255:59,28256:59,28258:59,28260:59,28262:59,28263:59,28265:59,28266:59,28269:59,28270:59,28271:59,28272:59,28273:59,28274:59,28275:59,28277:59,28278:59,28280:59,28281:59,28282:59,28284:59,28285:59,28287:59,28288:59,28289:59,28290:59,28296:59,28297:59,28299:59,28301:25,28302:25,28303:25,28304:25,28305:25,28306:25,28307:25,28308:25,28309:25,28310:25,28311:25,28312:25,28314:25,28315:62,28318:81,28319:77,28320:8,28323:42,28325:30,28326:42,28327:62,28328:81,28329:81,28330:76,28331:25,28332:8,28333:95,28334:42,28335:42,28337:8,28338:76,28339:42,28340:77,28341:30,28342:25,28343:82,28344:81,28345:76,28347:76,28348:25,28349:30,28350:62,28351:82,28352:82,28353:82,28355:52,28356:25,28357:77,28358:77,28359:77,28360:77,28362:77,28363:82,28364:77,28365:95,28366:81,28367:76,28368:42,28369:77,28370:62,28371:25,28372:77,28373:62,28374:62,28375:77,28376:46,28377:77,28378:77,28379:76,28380:76,28382:81,28383:77,28384:77,28385:81,28386:77,28387:62,28388:62,28390:42,28391:25,28392:8,28393:81,28394:62,28395:25,28396:82,28398:30,28399:8,28401:64,28402:64,28403:64,28404:64,28405:64,28406:64,28407:64,28408:64,28409:64,28410:64,28411:64,28412:64,28420:9,28421:70,28422:9,28423:23,28424:23,28425:70,28428:64,28429:64,28430:23,28431:23,28432:23,28433:8,28434:8,28435:70,28436:23,28438:23,28439:23,28441:81,28442:23,28443:70,28444:81,28445:66,28447:81,28448:8,28449:64,28450:23,28451:9,28452:9,28453:30,28454:66,28455:23,28456:23,28457:70,28458:30,28459:9,28460:66,28461:9,28462:9,28463:23,28464:30,28465:9,28466:30,28467:9,28468:9,28469:9,28470:9,28472:23,28478:70,28479:9,28480:64,28501:53,28502:53,28503:53,28504:53,28508:30,28509:68,28510:68,28511:15,28512:15,28513:73,28515:68,28516:15,28518:30,28519:24,28520:15,28521:30,28522:51,28523:24,28524:15,28525:53,28526:24,28527:24,28528:15,28529:68,28530:73,28531:15,28532:24,28533:24,28537:68,28538:39,28539:66,28540:66,28541:66,28542:66,28543:66,28544:66,28545:66,28546:66,28547:66,28551:53,28552:68,28553:15,28554:39,28555:66,28556:68,28557:15,28560:24,28561:24,28562:24,28563:24,28564:24,28570:15,28571:68,28572:30,28573:51,28574:66,28575:15,28577:15,28578:95,28579:15,28580:39,28581:15,28582:15,28583:68,28584:15,28585:51,28586:24,28587:68,28589:15,28590:73,28594:15,28601:17,28602:17,28603:17,28604:94,28605:94,28606:96,28607:94,28608:94,28609:17,28610:17,28611:13,28612:11,28613:17,28615:4,28616:5,28617:4,28618:94,28619:11,28621:85,28622:5,28623:2,28624:96,28625:48,28626:4,28627:2,28628:11,28629:4,28630:13,28631:4,28633:13,28634:48,28635:96,28636:1,28637:11,28638:13,28640:4,28641:11,28642:98,28643:4,28644:4,28645:13,28646:5,28647:5,28649:96,28650:17,28651:96,28652:5,28653:5,28654:96,28655:11,28656:96,28657:5,28658:17,28659:96,28660:48,28661:13,28662:5,28663:2,28664:5,28665:96,28666:11,28667:13,28668:2,28669:96,28670:96,28671:11,28672:4,28673:17,28674:96,28675:2,28676:85,28677:48,28678:1,28679:94,28680:11,28681:1,28682:17,28683:85,28684:4,28685:96,28687:48,28688:48,28689:48,28690:11,28691:94,28692:94,28693:4,28694:4,28697:96,28698:94,28699:1,28701:10,28702:37,28704:10,28705:60,28707:49,28708:87,28709:10,28710:44,28711:10,28712:87,28713:86,28714:99,28715:10,28716:43,28717:49,28718:87,28719:86,28720:80,28721:43,28722:74,28723:49,28724:44,28725:49,28726:44,28727:44,28728:10,28729:44,28730:10,28731:44,28732:44,28733:37,28734:55,28735:44,28736:49,28737:58,28738:43,28739:44,28740:99,28741:55,28742:44,28743:56,28744:55,28745:43,28746:80,28747:87,28748:10,28749:58,28750:74,28751:43,28752:58,28753:56,28754:56,28755:99,28756:74,28757:10,28758:44,28759:44,28760:44,28761:58,28762:58,28763:55,28765:60,28766:87,28768:87,28770:10,28771:37,28772:87,28773:74,28774:49,28775:55,28776:10,28777:60,28778:10,28779:49,28781:55,28782:74,28783:49,28784:44,28785:43,28786:43,28787:10,28788:49,28789:49,28790:44,28791:44,28792:44,28793:44,28801:10,28802:10,28803:10,28804:10,28805:10,28806:10,28810:10,28813:10,28814:10,28815:10,28816:10,28901:19,28902:21,28903:19,28904:21,28905:19,28906:19,28909:21");
+
+/* The county the store sits in — used for the tax line before a customer
+   has typed an address. */
+const HOME_COUNTY = "Guilford";
+
+function fillCountyOptions(){
+  const sel = document.getElementById("fCounty"); if(!sel || sel.options.length) return;
+  sel.innerHTML = '<option value="">Choose county</option>' +
+    Object.keys(NC_COUNTY_RATES).map(function(c){
+      return '<option value="'+c+'">'+c+' County — '+NC_COUNTY_RATES[c]+'%</option>';
+    }).join("");
+}
+/* Fill the County box from the ZIP (NC only), and hide it for other states. */
+function syncCounty(fromZip){
+  fillCountyOptions();
+  const st = document.getElementById("fState"), sel = document.getElementById("fCounty"),
+        wrap = document.getElementById("countyWrap"), zipEl = document.getElementById("fZip");
+  if(!st || !sel) return;
+  const isNC = st.value === "NC";
+  if(wrap) wrap.hidden = !isNC;
+  if(isNC && fromZip && zipEl){
+    const z = String(zipEl.value||"").replace(/\D/g,"").slice(0,5);
+    if(z.length === 5 && NC_ZIP_COUNTY[z]) sel.value = NC_ZIP_COUNTY[z];
+  }
+}
+/* The tax that applies to the address on the form right now. */
+function currentTax(){
+  const st = document.getElementById("fState"), sel = document.getElementById("fCounty"),
+        zipEl = document.getElementById("fZip");
+  const state = st ? st.value : "NC";
+  if(state === "NC"){
+    let county = sel && sel.value;
+    if(!county && zipEl){
+      const z = String(zipEl.value||"").replace(/\D/g,"").slice(0,5);
+      county = NC_ZIP_COUNTY[z] || "";
+    }
+    if(!county || NC_COUNTY_RATES[county] == null) county = HOME_COUNTY;
+    return {rate:NC_COUNTY_RATES[county], label:"NC sales tax ("+county+" County)", county:county, state:"NC"};
+  }
+  // Outside NC there's no county table yet — use the Owner tools rate.
+  return {rate:Number(settings.taxRate)||0, label:settings.taxLabel||"Sales tax", county:"", state:state};
+}
+
 /* These defaults ship inside the file, so every customer who opens the page
    sees them. Owner-tools edits are saved per-browser and only change what
    THAT device shows — bump `v` whenever these defaults change so saved
@@ -1157,7 +1214,7 @@ async function sendOrderAlert(o){
         email: o.email || "",
         sales_rep: o.rep || "",
         address: o.addr,
-        street: o.street, unit: o.unit, city: o.city, state: o.state, zip: o.zip,
+        street: o.street, unit: o.unit, city: o.city, state: o.state, zip: o.zip, county: o.county || "",
         delivery_notes: o.notes || "",
         payment_method: o.pay.label,
         payment_status: o.pay.when === "now"
@@ -1281,7 +1338,7 @@ let cart     = loadJSON(LS_CART, {});
    Kept only in this browser (never sent anywhere but the order itself), so a
    returning customer doesn't retype everything. Tick box on the form controls it. */
 const LS_CUST = "tbs_customer_v1";
-const CUST_FIELDS = ["fName","fLicense","fShop","fPhone","fEmail","fRep","fStreet","fUnit","fCity","fState","fZip","fNotes"];
+const CUST_FIELDS = ["fName","fLicense","fShop","fPhone","fEmail","fRep","fStreet","fUnit","fCity","fState","fZip","fCounty","fNotes"];
 function rememberCustomer(){
   const box = document.getElementById("fRemember");
   if(box && !box.checked){ forgetCustomer(); return; }
@@ -1295,13 +1352,15 @@ function forgetCustomer(){
   const link = document.getElementById("forgetMe"); if(link) link.hidden = true;
 }
 function fillSavedCustomer(){
+  fillCountyOptions();
   const saved = loadJSON(LS_CUST, null);
-  if(!saved) return;
+  if(!saved){ syncCounty(true); return; }
   CUST_FIELDS.forEach(function(id){
     const el = document.getElementById(id);
     if(el && saved[id] != null && !el.value) el.value = saved[id];
   });
   const link = document.getElementById("forgetMe"); if(link) link.hidden = false;
+  syncCounty(!saved.fCounty);
 }
 document.addEventListener("DOMContentLoaded", fillSavedCustomer);
 if(document.readyState !== "loading") fillSavedCustomer();
@@ -1487,7 +1546,8 @@ function computeTotals(){
   // Tax is charged on the full (original) subtotal. The discount is worked
   // out from the original subtotal too, then subtracted after tax is added:
   // total = subtotal + tax - discount.
-  const rate = Number(settings.taxRate)||0;
+  const tx = currentTax();
+  const rate = tx.rate;
   const taxable = Math.round(subtotal*100)/100;
   const tax = Math.round(taxable * rate) / 100;
   const beforeDiscount = Math.round((subtotal + tax)*100)/100;
@@ -1518,7 +1578,7 @@ function computeTotals(){
   const total = Math.round((beforeDiscount - discount + delivery)*100)/100;
   return {items:items, subtotal:subtotal, discount:discount, discountLabel:discountLabel,
           discountSource:discountSource, codeDiscount:codeDisc, taxable:taxable,
-          tax:tax, rate:rate, beforeDiscount:beforeDiscount, delivery:delivery, total:total};
+          tax:tax, rate:rate, taxLabel:tx.label, county:tx.county, beforeDiscount:beforeDiscount, delivery:delivery, total:total};
 }
 
 /* Current Greensboro date-time as "YYYY-MM-DDTHH:MM", so it compares
@@ -1564,7 +1624,7 @@ function lookupCode(raw){
 
 function totalsHTML(t){
   let h = '<div class="trow"><span>Subtotal ('+t.items.reduce((n,l)=>n+l.qty,0)+' items)</span><span>'+money(t.subtotal)+'</span></div>';
-  h += '<div class="trow"><span>'+esc(settings.taxLabel)+' \u00b7 '+(Number(settings.taxRate)||0)+'%</span><span>'+money(t.tax)+'</span></div>';
+  h += '<div class="trow"><span>'+esc(t.taxLabel)+' \u00b7 '+t.rate+'%</span><span>'+money(t.tax)+'</span></div>';
   if(t.discount > 0){
     h += '<div class="trow discount"><span>Discount \u00b7 '+esc(t.discountLabel)+'</span><span>\u2212'+money(t.discount)+'</span></div>';
   }
@@ -1572,7 +1632,7 @@ function totalsHTML(t){
   else if(t.items.length) h += '<div class="trow"><span>Delivery</span><span>Free</span></div>';
   h += '<div class="trow grand"><span>Total</span><span>'+money(t.total)+'</span></div>';
   if(t.items.length){
-    h += '<p class="taxnote">Tax is '+(Number(settings.taxRate)||0)+'% of '+money(t.taxable)+', rounded to the cent.'+
+    h += '<p class="taxnote">Tax is '+t.rate+'% of '+money(t.taxable)+', rounded to the cent.'+
          (t.discount>0 ? ' Your discount is taken from the '+money(t.subtotal)+' subtotal and subtracted after tax.' : '')+'</p>';
   }
   return h;
@@ -1714,6 +1774,7 @@ function buildOrderRaw(){
     rep:squish($("fRep").value),
     street:niceCase($("fStreet").value,true), unit:niceCase($("fUnit").value,true),
     city:niceCase($("fCity").value), state:$("fState").value, zip:niceZip($("fZip").value),
+    county:(t.county||""),
     addr:"", notes:squish($("fNotes").value),
     discountCode: t.discount>0 ? t.discountLabel : "",
     pay:payOpt, totals:t
@@ -1789,6 +1850,7 @@ function receiptText(o){
   L.push("");
   L.push("DELIVER TO");
   o.addr.split("\n").forEach(l => L.push("  "+l));
+  if(o.county) L.push("  County:   "+o.county+" ("+o.totals.rate+"% sales tax)");
   if(o.notes) L.push("  Notes:    "+o.notes);
   L.push("");
   L.push("ITEMS");
@@ -1797,7 +1859,7 @@ function receiptText(o){
   });
   L.push("");
   L.push("  Subtotal: "+money(o.totals.subtotal));
-  L.push("  "+settings.taxLabel+": "+money(o.totals.tax)+" @ "+settings.taxRate+"%");
+  L.push("  "+o.totals.taxLabel+": "+money(o.totals.tax)+" @ "+o.totals.rate+"%");
   if(o.totals.discount>0) L.push("  Discount ("+o.discountCode+"): -"+money(o.totals.discount));
   if(o.totals.delivery>0) L.push("  Delivery: "+money(o.totals.delivery));
   L.push("  TOTAL: "+money(o.totals.total));
@@ -1945,6 +2007,12 @@ $("backToCart").addEventListener("click", function(){ renderCart(); show("cartSh
 function refreshCoTotals(){
   $("coTotals").innerHTML = totalsHTML(computeTotals());
 }
+["fZip","fState"].forEach(function(id){
+  ["input","change"].forEach(function(ev){
+    $(id).addEventListener(ev, function(){ syncCounty(true); refreshCoTotals(); });
+  });
+});
+$("fCounty").addEventListener("change", function(){ this.classList.remove("bad"); refreshCoTotals(); });
 
 /* Apply (or clear) a discount code and explain the result plainly. */
 function applyDiscountCode(){
@@ -2085,6 +2153,12 @@ $("placeOrder").addEventListener("click", function(){
   if(!/^\d{5}(-?\d{4})?$/.test($("fZip").value.trim())){
     err.textContent = "The ZIP code should be 5 digits \u2014 like 27401.";
     err.hidden=false; $("fZip").classList.add("bad"); $("fZip").focus();
+    $("coSheet").querySelector(".sheet-body").scrollTop=0;
+    return;
+  }
+  if($("fState").value === "NC" && !$("fCounty").value){
+    err.textContent = "Pick your county \u2014 it sets the sales tax for your address.";
+    err.hidden=false; $("fCounty").classList.add("bad"); $("fCounty").focus();
     $("coSheet").querySelector(".sheet-body").scrollTop=0;
     return;
   }
@@ -2470,7 +2544,7 @@ function renderAdmin(tab){
       afield("sEmail","Email that receives orders",s.email)+'</div>'+
       '<div class="note" style="margin:6px 0 16px">These show on the page for customers to contact you. <b>Automatic order alerts</b> go to the email and phone set in the Google Apps Script (order-alerts.gs) \u2014 change them there.</div>'+
       '<div class="two">'+
-      afield("sTax","Sales tax rate (%)",s.taxRate,"number")+
+      afield("sTax","Sales tax rate (%) \u2014 only for addresses outside NC (NC uses each county\u2019s rate)",s.taxRate,"number")+
       afield("sTaxLabel","How tax is labelled",s.taxLabel)+'</div>'+
       '<div class="note" style="margin:0 0 16px">Greensboro / Guilford County is <b>6.75%</b> — 4.75% state plus 2% county. Change this only if you deliver into a county with a different rate.</div>'+
       '<div class="two">'+
