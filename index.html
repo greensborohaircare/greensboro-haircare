@@ -1653,6 +1653,8 @@ async function sendOrderAlert(o){
                   + (o.pay.when === "now" ? " — PAID via " + o.pay.label : " — pay on delivery"),
         order_number: o.code,
         placed_at: o.placedAt.toLocaleString("en-US",{timeZone:"America/New_York"}),
+        placed_iso: o.placedAt.toISOString(),
+        page_url: /^https:/.test(location.href) ? location.origin + location.pathname : "",
         customer: o.name,
         shop: o.shop || "",
         license: o.license || "",
@@ -3098,34 +3100,93 @@ document.addEventListener("click", function(e){ if(e.target.closest("[data-close
 document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeAll(); });
 
 /* ---------------- admin ---------------- */
-$("adminBtn").addEventListener("click", async function(){
-  if(!adminUnlocked){
+async function ownerUnlock(){
+  if(adminUnlocked) return true;
+  {
     const pin = prompt("Owner password");
-    if(pin===null) return;
+    if(pin===null) return false;
     if(ORDER_ENDPOINT){
       toast("Checking\u2026");
       try{
         const r = await callBackend({action:"login", password:pin});
-        if(!r || !r.ok){ toast(r && r.error ? r.error : "That password didn't match"); return; }
+        if(!r || !r.ok){ toast(r && r.error ? r.error : "That password didn't match"); return false; }
         adminPassword = pin;
         applyPromos(r);          // full list, including codes that are switched off
-      }catch(e){ toast("Can't reach the server \u2014 check your connection"); return; }
+      }catch(e){ toast("Can't reach the server \u2014 check your connection"); return false; }
     } else {
-      if(!settings.adminPin || pin !== String(settings.adminPin)){ toast("That password didn't match"); return; }
+      if(!settings.adminPin || pin !== String(settings.adminPin)){ toast("That password didn't match"); return false; }
     }
     adminUnlocked = true;
     try{ localStorage.setItem(LS_OWNER, "1"); }catch(e){}
   }
-  renderAdmin("store");
+  return true;
+}
+$("adminBtn").addEventListener("click", async function(){
+  if(!(await ownerUnlock())) return;
+  renderAdmin("orders");
   show("adSheet");
 });
+
+/* ---------------- Orders tab: every order, with its packing slip ---------------- */
+let ownerOrders = [], ownerOrderFocus = "";
+function slipOrderFromRecord(r){
+  let when = r.iso ? new Date(r.iso) : new Date(r.at);
+  if(isNaN(when)) when = new Date();
+  return {code:r.n, placedAt:when, name:r.c, shop:r.s, phone:r.ph, rep:r.r, addr:r.a, notes:r.no,
+    totals:{items:(r.it||[]).map(function(x){ return {p:{name:x.n, size:x.sz}, shade:x.sh, qty:x.q}; })}};
+}
+function ordersHTML(){
+  if(!ownerOrders.length) return '<div class="note">No orders saved yet. New orders show up here as soon as customers submit them.</div>';
+  const list = ownerOrders.slice().sort(function(a,b){ return (b.n===ownerOrderFocus) - (a.n===ownerOrderFocus); });
+  return list.map(function(r){
+    const units = (r.it||[]).reduce(function(n,x){ return n + (Number(x.q)||0); }, 0);
+    const paid = /^PAID/.test(r.ps||"");
+    return '<div style="border:1px solid '+(r.n===ownerOrderFocus?'var(--accent)':'var(--line)')+';border-radius:var(--r-sm);padding:12px;margin-bottom:10px;background:var(--surface)">'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--text-3)"><span>'+esc(r.n)+'</span><span>'+esc(r.at)+'</span></div>'+
+      '<div style="font-weight:700;margin-top:4px">'+esc(r.c)+(r.s?' <span style="font-weight:400;color:var(--text-2)">\u00b7 '+esc(r.s)+'</span>':'')+'</div>'+
+      '<div style="font-size:13.5px;color:var(--text-2);margin-top:2px">'+esc(String(r.a||"").replace(/\n/g,", "))+'</div>'+
+      '<div style="font-size:13.5px;margin-top:4px">'+units+' item'+(units===1?'':'s')+' \u00b7 '+esc(r.tot||"")+' \u00b7 '+
+        '<b style="color:'+(paid?'var(--good)':'var(--warn)')+'">'+(paid?'Paid':'Collect on delivery')+'</b></div>'+
+      '<button class="btn" data-slip="'+esc(r.n)+'" style="margin-top:10px">Packing slip (4 \u00d7 6 PDF)</button>'+
+    '</div>';
+  }).join("");
+}
+async function loadOwnerOrders(){
+  const box = $("ordList"); if(!box) return;
+  if(!ORDER_ENDPOINT || !adminPassword){ box.innerHTML = '<div class="note">Orders are saved by the Google script \u2014 connect it (ORDER_ENDPOINT) to see them here.</div>'; return; }
+  box.innerHTML = '<div class="note">Loading orders\u2026</div>';
+  try{
+    const r = await callBackend({action:"orders", password:adminPassword});
+    if(!r || !r.ok){ box.innerHTML = '<div class="note">'+esc(r && r.error ? r.error : "Couldn't load orders")+'</div>'; return; }
+    ownerOrders = r.orders || [];
+    box.innerHTML = ordersHTML();
+  }catch(e){ box.innerHTML = '<div class="note">Couldn\u2019t reach the server \u2014 check your connection and tap Refresh.</div>'; }
+}
+
+/* Link from the order email: #slip=ORD-... opens that order in Owner tools. */
+(function(){
+  const m = String(location.hash||"").match(/^#slip=(ORD-\d{8}-\d{4})$/);
+  if(!m) return;
+  ownerOrderFocus = m[1];
+  const bar = document.createElement("button");
+  bar.type = "button"; bar.className = "btn";
+  bar.textContent = "Open packing slip for " + m[1];
+  bar.style.cssText = "position:fixed;left:16px;right:16px;bottom:18px;z-index:60;width:auto;box-shadow:0 6px 24px rgba(0,0,0,.25)";
+  bar.addEventListener("click", async function(){
+    if(!(await ownerUnlock())) return;
+    bar.remove();
+    renderAdmin("orders");
+    show("adSheet");
+  });
+  document.body.appendChild(bar);
+})();
 
 function renderAdmin(tab){
   const s=settings;
   let h = '<div class="tabs">'+
-    ['store','products','payments','discounts'].map(t =>
+    ['orders','store','products','payments','discounts'].map(t =>
       '<button class="tab" data-tab="'+t+'" aria-selected="'+(t===tab)+'">'+
-      (t==="store"?"Store &amp; tax":t==="products"?"Products &amp; prices":
+      (t==="orders"?"Orders":t==="store"?"Store &amp; tax":t==="products"?"Products &amp; prices":
        t==="payments"?"Payment handles":"Discount codes")+'</button>'
     ).join("")+'</div>';
 
@@ -3141,7 +3202,7 @@ function renderAdmin(tab){
       '<div class="two">'+
       afield("sTax","Sales tax rate (%) \u2014 backup only; NC, SC and VA addresses use their county\u2019s rate",s.taxRate,"number")+
       afield("sTaxLabel","How tax is labelled",s.taxLabel)+'</div>'+
-      '<div class="note" style="margin:0 0 16px">Greensboro / Guilford County is <b>6.75%</b> — 4.75% state plus 2% county. Change this only if you deliver into a county with a different rate.</div>'+
+      '<div class="note" style="margin:0 0 16px">Tax is set automatically from each customer\u2019s ZIP and county for NC, SC and VA. This backup rate is only used if an address isn\u2019t in those tables.</div>'+
       '<div class="two">'+
       afield("sDel","Delivery fee ($)",s.deliveryFee,"number")+
       afield("sFree","Free delivery over ($, 0 = always free)",s.freeOver,"number")+'</div>'+
@@ -3244,8 +3305,15 @@ function renderAdmin(tab){
       '<button class="btn ghost" id="addProd" style="margin-top:14px">Add a product</button>'+
       '<button class="btn ghost" id="resetCat" style="margin-top:10px">Reset to the printed price list</button>';
   }
+  if(tab==="orders"){
+    h += '<div class="note" style="margin-bottom:14px">The newest orders from every customer. Tap <b>Packing slip</b>, then <b>Print</b> and pick your AirPrint printer (paper size 4 \u00d7 6).</div>'+
+      '<button class="btn ghost" id="ordReload" style="margin-bottom:14px">Refresh</button>'+
+      '<div id="ordList"></div>';
+  }
   $("adBody").innerHTML=h;
   $("adBody").dataset.tab=tab;
+  $("adSave").hidden = tab==="orders";   // nothing to save on the Orders tab
+  if(tab==="orders") loadOwnerOrders();
 }
 
 function afield(id,label,val,type){
@@ -3254,6 +3322,13 @@ function afield(id,label,val,type){
 }
 
 $("adBody").addEventListener("click", function(e){
+  const sb=e.target.closest("[data-slip]");
+  if(sb){
+    const r = ownerOrders.filter(function(x){ return x.n === sb.getAttribute("data-slip"); })[0];
+    if(r) openPackingSlip(slipOrderFromRecord(r));
+    return;
+  }
+  if(e.target.id==="ordReload"){ loadOwnerOrders(); return; }
   const tb=e.target.closest(".tab");
   if(tb){ if($("adBody").dataset.tab==="discounts") $("adSave").dataset.promosDirty="1";
           collectAdmin(); renderAdmin(tb.dataset.tab); return; }
