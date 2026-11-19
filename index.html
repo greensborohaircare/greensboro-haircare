@@ -621,6 +621,10 @@ p.dim{color:var(--text-3); font-size:13.5px; line-height:1.5}
       <input id="fEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@shop.com">
       <div class="hint">Your receipt copy goes here.</div>
     </div>
+    <div class="field">
+      <label for="fRep">Sales rep <span class="opt">(optional)</span></label>
+      <input id="fRep" autocomplete="off" placeholder="Who helped you with this order?">
+    </div>
     <div class="sec-label" style="margin-top:4px">Delivery address</div>
     <div class="field">
       <label for="fStreet">Street address <span class="req">*</span></label>
@@ -651,6 +655,12 @@ p.dim{color:var(--text-3); font-size:13.5px; line-height:1.5}
       <textarea id="fNotes" placeholder="Best time to drop off, where to leave it, gate code…"></textarea>
       <div class="hint">Let us know how to find you — a gate code, a buzzer, which door.</div>
     </div>
+    <label class="checkline" for="fRemember" style="margin:4px 0 14px">
+      <input type="checkbox" id="fRemember" checked>
+      <span style="margin:0"><b>Save my info on this device</b>
+        <span>Next time your name, shop, license, phone, email, sales rep and address fill in for you.
+        <a href="#" id="forgetMe" hidden>Clear saved info</a></span></span>
+    </label>
 
     <div id="codeWrap" class="codebox">
       <label class="sec-label" for="fCode">Discount code</label>
@@ -1107,6 +1117,7 @@ function smsText(o){
     o.name+(o.shop?" ("+o.shop+")":"")+"\n"+
     o.phone+"\n"+
     (o.email ? "Email: "+textSafeEmail(o.email)+"\n" : "")+
+    (o.rep ? "Rep: "+o.rep+"\n" : "")+
     money(o.totals.total)+" - "+(o.pay.when==="now" ? "PAID via "+o.pay.label : "collect on delivery ("+o.pay.label+")")+"\n"+
     o.addr.replace(/\n/g,", ")+"\n"+
     shown.join("\n"));
@@ -1144,6 +1155,7 @@ async function sendOrderAlert(o){
         license: o.license || "",
         phone: o.phone,
         email: o.email || "",
+        sales_rep: o.rep || "",
         address: o.addr,
         street: o.street, unit: o.unit, city: o.city, state: o.state, zip: o.zip,
         delivery_notes: o.notes || "",
@@ -1264,6 +1276,46 @@ function mergeCatalog(stored){
 
 let catalog = mergeCatalog(loadJSON(LS_CAT, null));
 let cart     = loadJSON(LS_CART, {});
+
+/* ---------------- saved customer info ----------------
+   Kept only in this browser (never sent anywhere but the order itself), so a
+   returning customer doesn't retype everything. Tick box on the form controls it. */
+const LS_CUST = "tbs_customer_v1";
+const CUST_FIELDS = ["fName","fLicense","fShop","fPhone","fEmail","fRep","fStreet","fUnit","fCity","fState","fZip","fNotes"];
+function rememberCustomer(){
+  const box = document.getElementById("fRemember");
+  if(box && !box.checked){ forgetCustomer(); return; }
+  const saved = {};
+  CUST_FIELDS.forEach(function(id){ const el = document.getElementById(id); if(el) saved[id] = el.value; });
+  saveJSON(LS_CUST, saved);
+  const link = document.getElementById("forgetMe"); if(link) link.hidden = false;
+}
+function forgetCustomer(){
+  try{ localStorage.removeItem(LS_CUST); }catch(e){}
+  const link = document.getElementById("forgetMe"); if(link) link.hidden = true;
+}
+function fillSavedCustomer(){
+  const saved = loadJSON(LS_CUST, null);
+  if(!saved) return;
+  CUST_FIELDS.forEach(function(id){
+    const el = document.getElementById(id);
+    if(el && saved[id] != null && !el.value) el.value = saved[id];
+  });
+  const link = document.getElementById("forgetMe"); if(link) link.hidden = false;
+}
+document.addEventListener("DOMContentLoaded", fillSavedCustomer);
+if(document.readyState !== "loading") fillSavedCustomer();
+document.addEventListener("click", function(e){
+  if(e.target && e.target.id === "forgetMe"){
+    e.preventDefault();
+    forgetCustomer();
+    CUST_FIELDS.forEach(function(id){
+      const el = document.getElementById(id); if(!el) return;
+      if(id === "fState") el.value = "NC"; else el.value = "";
+    });
+    const box = document.getElementById("fRemember"); if(box) box.checked = false;
+  }
+});
 let activeCat = "All";
 let query = "";
 let lastOrder = null;
@@ -1659,6 +1711,7 @@ function buildOrderRaw(){
     license:squish($("fLicense").value).toUpperCase(),
     phone:nicePhone($("fPhone").value),
     email:squish($("fEmail").value).toLowerCase().replace(/\s/g,""),
+    rep:squish($("fRep").value),
     street:niceCase($("fStreet").value,true), unit:niceCase($("fUnit").value,true),
     city:niceCase($("fCity").value), state:$("fState").value, zip:niceZip($("fZip").value),
     addr:"", notes:squish($("fNotes").value),
@@ -1707,6 +1760,7 @@ function receiptHTML(o){
         (o.license?'<dt>License</dt><dd>'+esc(o.license)+'</dd>':'')+
         '<dt>Phone</dt><dd>'+esc(o.phone)+'</dd>'+
         (o.email?'<dt>Email</dt><dd>'+esc(o.email)+'</dd>':'')+
+        (o.rep?'<dt>Sales rep</dt><dd>'+esc(o.rep)+'</dd>':'')+
         '<dt>Address</dt><dd>'+esc(o.addr).replace(/\n/g,"<br>")+'</dd>'+
         (o.notes?'<dt>Notes</dt><dd>'+esc(o.notes)+'</dd>':'')+
         (o.discountCode?'<dt>Discount</dt><dd>'+esc(o.discountCode)+' \u2212'+money(o.totals.discount)+'</dd>':'')+
@@ -1731,6 +1785,7 @@ function receiptText(o){
   if(o.license) L.push("  License:  "+o.license);
   L.push("  Phone:    "+o.phone);
   if(o.email)   L.push("  Email:    "+o.email);
+  if(o.rep)     L.push("  Sales rep: "+o.rep);
   L.push("");
   L.push("DELIVER TO");
   o.addr.split("\n").forEach(l => L.push("  "+l));
@@ -1986,7 +2041,7 @@ function addressLines(o){
 }
 /* Fix the boxes in place as people leave them, so they see the clean version. */
 [["fName",v=>niceCase(v,"name")],["fShop",squish],["fCity",v=>niceCase(v)],["fStreet",v=>niceCase(v,true)],["fUnit",v=>niceCase(v,true)],
- ["fPhone",nicePhone],["fZip",niceZip],["fEmail",v=>squish(v).toLowerCase().replace(/\s/g,"")]]
+ ["fRep",v=>niceCase(v,"name")],["fPhone",nicePhone],["fZip",niceZip],["fEmail",v=>squish(v).toLowerCase().replace(/\s/g,"")]]
 .forEach(function(f){
   const el = $(f[0]); if(!el) return;
   el.addEventListener("blur", function(){ if(this.value.trim()) this.value = f[1](this.value); });
@@ -2051,6 +2106,7 @@ $("placeOrder").addEventListener("click", function(){
   // Build the order now so it has a number the customer can put in the
   // payment note, but don't confirm it until they submit.
   pendingOrder = buildOrder();
+  rememberCustomer();
   renderPaySheet(pendingOrder);
   show("paySheet");
 });
